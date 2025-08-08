@@ -1,0 +1,67 @@
+# -----------------------
+# Node.js
+# -----------------------
+node_modules/
+npm-debug.log*
+
+# -----------------------
+# Environment files
+# -----------------------
+.env
+.env.*
+!.env.example
+
+# -----------------------
+# Build output
+# -----------------------
+dist/
+build/
+.cache/
+.temp/
+
+# -----------------------
+# Logs
+# -----------------------
+logs
+*.log
+*.log.*
+*.out
+*.pid
+*.seed
+*.pid.lock
+
+# -----------------------
+# macOS system files
+# -----------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# -----------------------
+# VS Code
+# -----------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# -----------------------
+# Temporary files
+# -----------------------
+*.tmp
+*.swp
+*.swo
+*.bak
+*.orig
+
+# -----------------------
+# TypeScript
+# -----------------------
+*.tsbuildinfo
+
+# -----------------------
+# Local coverage reports
+# -----------------------
+coverage/
+*.lcov
