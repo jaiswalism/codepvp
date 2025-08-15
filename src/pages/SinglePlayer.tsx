@@ -7,10 +7,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 const SinglePlayer: React.FC = () => {
 
     const navigate = useNavigate();
-    const user = auth.currentUser;
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, (user) => {
             if(!user) {
                 navigate('/login');
             }
