@@ -15,15 +15,16 @@ const Login: React.FC = () => {
   const handleGoogle = () => {
       signInWithPopup(auth, provider)
       .then((result) => {
-          const credential = GoogleAuthProvider.credentialFromResult(result);
-          const token = credential?.accessToken;
 
           const user = result.user;
+          console.log(user)
 
           navigate('/');
       }).catch((error) => {
           const errorCode = error.code;
           const errorMessage = error.message;
+          console.log(errorCode)
+            console.log(errorMessage)
       })
   }
 
@@ -32,11 +33,13 @@ const Login: React.FC = () => {
         signInWithEmailAndPassword(auth, email, password)
         .then((userCredential) => {
             const user = userCredential.user;
+            console.log(user)
             navigate('/');
         })
         .catch((error) => {
             const errorCode = error.code;
             const errorMessage = error.message;
+            console.log(errorCode)
             console.log(errorMessage)
         })
 
