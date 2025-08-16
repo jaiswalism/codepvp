@@ -1,36 +1,37 @@
 import React, { type FormEvent } from 'react';
-import { signInWithEmailAndPassword, GoogleAuthProvider , signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider , signInWithPopup } from 'firebase/auth';
 import { auth } from '../../firebaseConfig'
-import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const Login: React.FC = () => {
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const Signup: React.FC = () => {
 
-  const navigate = useNavigate();
-  const provider = new GoogleAuthProvider();
-  
-  const handleGoogle = () => {
-      signInWithPopup(auth, provider)
-      .then((result) => {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
 
-          const user = result.user;
-          console.log(user)
+    const navigate = useNavigate();
+    const provider = new GoogleAuthProvider();
 
-          navigate('/');
-      }).catch((error) => {
-          const errorCode = error.code;
-          const errorMessage = error.message;
-          console.log(errorCode)
+    const handleGoogle = () => {
+        signInWithPopup(auth, provider)
+        .then((result) => {
+
+            const user = result.user;
+            console.log(user)
+
+            navigate('/');
+        }).catch((error) => {
+            const errorCode = error.code;
+            const errorMessage = error.message;
+            console.log(errorCode)
             console.log(errorMessage)
-      })
-  }
+        })
+    }
 
-  const handleSubmit = (e: FormEvent) => {
-  
-        signInWithEmailAndPassword(auth, email, password)
+    const handleSubmit = (e: FormEvent) => {
+
+        createUserWithEmailAndPassword(auth, email, password)
         .then((userCredential) => {
             const user = userCredential.user;
             console.log(user)
@@ -47,6 +48,7 @@ const Login: React.FC = () => {
         e.preventDefault()
     }
 
+
   return (
     <div className='bg-gray-900 h-dvh w-dvw flex justify-center'>
     <div className="z-10 flex flex-col items-center p-8 max-w-lg w-full
@@ -56,14 +58,14 @@ const Login: React.FC = () => {
       
       {/* Header section with title and back button */}
       <div className="w-full flex justify-between items-center mb-8">
-        <h2 className="text-5xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Login</h2>
+        <h2 className="text-5xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Signup</h2>
         <button className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
           Menu
         </button>
       </div>
 
-      {/* Login Form */}
+      {/* Signup Form */}
       <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
         <div>
           <label htmlFor="email" className="block text-left text-cyan-300 text-sm font-bold mb-2">
@@ -106,7 +108,7 @@ const Login: React.FC = () => {
           hover:bg-transparent hover:text-cyan-300
           hover:shadow-[0_0_20px_rgba(56,189,248,0.7)]"
         >
-          ACCESS WITH EMAIL
+          SIGNUP
         </button>
       </form>
 
@@ -131,15 +133,15 @@ const Login: React.FC = () => {
           <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path>
           <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C41.38,36.405,44,30.633,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
         </svg>
-        SIGN IN WITH GOOGLE
+        SIGN UP WITH GOOGLE
       </button>
       
       <p className="mt-8 text-sm text-gray-400">
-        Don't have an account? <a href="/signup" className="font-bold text-purple-300 hover:underline">Create one here.</a>
+        Already have an account? <a href="/login" className="font-bold text-purple-300 hover:underline">Login here.</a>
       </p>
     </div>
     </div>
   );
 };
 
-export default Login;
+export default Signup;
