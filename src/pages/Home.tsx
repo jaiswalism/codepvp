@@ -1,6 +1,7 @@
 import AnimatedBackground from './components/AnimatedBackground';
 import GlitchTitle from './components/GlitchTitle';
 import NavButton from './components/NavButton';
+import { Link } from 'react-router-dom';
 
 
 // --- Main App Component ---
@@ -21,9 +22,11 @@ export default function Home() {
         </p>
 
         <nav className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-          <NavButton href="/SinglePlayer" icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M12 12v-1"></path><path d="M12 8v1"></path></svg>}>
+          <Link to="/SinglePlayer">
+          <NavButton icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M12 12v-1"></path><path d="M12 8v1"></path></svg>}>
             Single Player
           </NavButton>
+          </Link>
           <NavButton icon={<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4.5"></circle><path d="M22 11v-2a4 4 0 0 0-4-4H7"></path></svg>}>
             Multiplayer
           </NavButton>
