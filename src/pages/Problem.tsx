@@ -30,6 +30,17 @@ const Problem: React.FC = () => {
 
     const[code, setCode] = useState("");
 
+    const twoSumHarness = `
+def run_tests() :
+    output = twoSum([3, 2, 4], 6)
+    expected = [1, 2]
+    if sorted(output) == sorted(expected):
+        print("Passed")
+    else:
+        print("Failed")
+run_tests()
+    `
+
     useEffect(() => {
         if(problemId) {
             console.log(problemId);
@@ -56,9 +67,79 @@ const Problem: React.FC = () => {
         editorRef.current = editorInstance;
     }
 
-    function Run() {
+    const checkStatus = async (token: string) => {
+        const url = `https://judge0-ce.p.rapidapi.com/submissions/${token}?base64_encoded=true&fields=*`;
+        const options = {
+        method: 'GET',
+        headers: {
+            'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
+            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+        },
+        };
+
+        try {
+        let response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        let data = await response.json();
+        let statusId = data.status?.id;
+
+        // Keep polling until the submission is processed (status 1 or 2)
+        while (statusId === 1 || statusId === 2) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            data = await response.json();
+            statusId = data.status?.id;
+        }
+        
+        // Decode the Base64 output
+        const stdout = data.stdout ? atob(data.stdout) : null;
+        const stderr = data.stderr ? atob(data.stderr) : null;
+        const compileError = data.compile_output ? atob(data.compile_output) : null;
+        
+        let finalOutput = '';
+        if (stdout) finalOutput += `Output:\n${stdout}\n`;
+        if (stderr) finalOutput += `Error:\n${stderr}\n`;
+        if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
+        if (!stdout && !stderr && !compileError) finalOutput = "Execution successful, but no output.";
+        console.log(finalOutput);
+        
+        } catch (err: any) {
+            console.error(err);
+        }
+    };
+
+    async function Run() {
         const sourceCode = editorRef.current?.getValue();
-        console.log(sourceCode);
+        const url = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&fields=*';
+        const options = {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
+                'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+            },
+            body: JSON.stringify({
+                language_id: 71,
+                source_code: btoa(sourceCode+twoSumHarness),
+            }),
+        };
+
+        try {
+            const response = await fetch(url, options);
+            if(!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            checkStatus(data.token);
+        } catch (err: any) {
+            console.error(err);
+        }
     }
 
   return (
