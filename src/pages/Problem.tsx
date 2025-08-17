@@ -19,13 +19,16 @@ interface ProblemData {
             }
     }[];
     constraints: string[];
+    starter_code: string;
 }
 
 const Problem: React.FC = () => {
 
     const { problemId } = useParams<{ problemId: string }>();
 
-    const [data, setData] = useState<ProblemData | null>(null)
+    const [data, setData] = useState<ProblemData | null>(null);
+
+    const[code, setCode] = useState("");
 
     useEffect(() => {
         if(problemId) {
@@ -40,6 +43,8 @@ const Problem: React.FC = () => {
         const docSnap = await getDoc(docRef);
         if(docSnap.exists()) {
             setData(docSnap.data() as ProblemData);
+            setCode(docSnap.data().starter_code);
+            console.log(docSnap.data());
         } else {
             console.log("GAY")
         }
@@ -122,7 +127,7 @@ const Problem: React.FC = () => {
              <Editor 
                 theme="vs-dark" 
                 defaultLanguage='python' 
-                defaultValue='# Code Here' 
+                value={code} 
                 options={{
                     minimap: { enabled: false },
                     fontSize: 16,
