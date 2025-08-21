@@ -7,6 +7,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useState } from 'react';
 
 interface ProblemData {
+    category: string;
+    difficulty: string;
+    slug: string;
     title: string;
     stmt: string;
     testcases: {
@@ -19,7 +22,28 @@ interface ProblemData {
             }
     }[];
     constraints: string[];
-    starter_code: string;
+    starter_code: {
+      c: string;
+      cpp: string;
+      csharp: string;
+      dart: string;
+      elixir: string;
+      erlang: string;
+      golang: string;
+      java: string;
+      javascript: string;
+      kotlin: string;
+      php: string;
+      python: string;
+      python3: string;
+      racket: string;
+      ruby: string;
+      rust: string;
+      scala: string;
+      swift: string;
+      typescript: string;
+    }
+    tags: string[];
 }
 
 const Problem: React.FC = () => {
@@ -54,7 +78,7 @@ run_tests()
         const docSnap = await getDoc(docRef);
         if(docSnap.exists()) {
             setData(docSnap.data() as ProblemData);
-            setCode(docSnap.data().starter_code);
+            setCode(docSnap.data().starter_code.python);
             console.log(docSnap.data());
         } else {
             console.log("GAY")
