@@ -7,19 +7,7 @@ import { auth } from '../../firebaseConfig';
 import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-
-function useAuth() {
-    const [user, setUser] = useState<User | null>(null);
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            setUser(firebaseUser);
-        });
-        return unsubscribe;
-    }, []);
-
-    return { user };
-}
+import useAuth from '../hooks/useAuth';
 
 type PlayerSlotProps = {
     player: string | null;
@@ -63,7 +51,7 @@ const RoomPage: React.FC = () => {
 
   useEffect(() => {
 
-    const socket = io("http://localhost:4000", {
+    const socket = io(import.meta.env.VITE_BACKEND_URL, {
       query: { roomId, currentUserName },
     });
     setSocket(socket);

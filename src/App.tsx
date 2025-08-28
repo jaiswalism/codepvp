@@ -21,7 +21,7 @@ function App() {
           <Route path="SinglePlayer" element={<SinglePlayer />} />
           <Route path="MultiPlayer" element={<MultiPlayer />} />
           <Route path="room/:roomId" element={<RoomPage />} />
-          <Route path="problems/:problemId" element={<Problem />} />
+          <Route path="room/:roomId/problems/:problemId" element={<Problem />} />
         </Route>
       </Routes>
     </BrowserRouter>

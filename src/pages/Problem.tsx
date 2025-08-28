@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import { useParams } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+import useAuth from '../hooks/useAuth';
 
 interface ProblemData {
     category: string;
@@ -49,8 +50,14 @@ interface ProblemData {
 const Problem: React.FC = () => {
 
     const { problemId } = useParams<{ problemId: string }>();
+    const { roomId } = useParams<{ roomId: string }>();
+
+    const [socket, setSocket] = useState<Socket | null>(null);
 
     const [data, setData] = useState<ProblemData | null>(null);
+
+    const { user } = useAuth();
+    const currentUserName = user?.displayName || user?.email || "Anon";
 
     const[code, setCode] = useState("");
 
@@ -65,13 +72,51 @@ def run_tests() :
 run_tests()
     `
 
+    // Fetch problem data
     useEffect(() => {
-        if(problemId) {
-            console.log(problemId);
-            getDocumentData("problems", problemId);
-            console.log(data);
-        }
-    }, [problemId])
+        if (!problemId) return;
+        getDocumentData("problems", problemId);
+    }, [problemId]);
+
+    // Socket Connection
+    useEffect(() => {
+
+        if(!roomId || !problemId) return;
+
+        const s = io(import.meta.env.VITE_BACKEND_URL, {
+          query: { roomId, problemId, username: currentUserName },
+        });
+
+        setSocket(s);
+
+        s.emit("joinProblemRoom", { roomId, problemId, username: currentUserName });
+
+        return () => {
+            s.disconnect();
+        };
+
+    }, [roomId, problemId, currentUserName]);
+
+    // Listening changes on editor
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleRemoteChange = (data: { code: string }) => {
+            if (editorRef.current) {
+                const current = editorRef.current.getValue();
+                if (current !== data.code) {
+                    editorRef.current.setValue(data.code);
+                }
+            }
+            console.log("Changed")
+        };
+
+        socket.on("editorUpdate", handleRemoteChange);
+
+        return () => {
+            socket.off("editorUpdate", handleRemoteChange);
+        };
+    }, [socket]);
 
     async function getDocumentData(collectionName: string, documentId: string) {
         const docRef = doc(db, collectionName, documentId);
@@ -239,6 +284,17 @@ run_tests()
                     wordWrap: 'on',
                 }}
                 onMount={handleEditorDidMount}
+                onChange={(newValue) => {
+                  setCode(newValue || "");
+
+                  console.log(code);
+
+                  socket?.emit("editorChange", {
+                    roomId,
+                    problemId,
+                    code: newValue
+                  })
+                }}
             />
           </div>
           <div className="flex justify-end items-center p-4 bg-gray-900/50 border-t border-gray-700/50 gap-4">

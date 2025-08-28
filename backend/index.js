@@ -14,6 +14,7 @@ const userToRoom = {};
 
 io.on("connection", (socket) => {
 
+  // This is for joining the room
   socket.on("joinRoom", ({ roomId, username }) => {
 
     console.log(`User ${username} joined room ${roomId}`);
@@ -64,6 +65,16 @@ io.on("connection", (socket) => {
     // 3. Broadcast updated state
     io.to(roomId).emit("roomUpdate", room);
     });
+  
+  socket.on("joinProblemRoom", ({roomId, problemId, username}) => {
+    socket.join(problemId);
+    console.log(`${username} joined ${problemId} in room ${roomId}`);
+  });
+
+  socket.on("editorChange", ({ roomId, problemId, code }) => {
+    // Broadcast to everyone else in the same room/problem
+    socket.to(problemId).emit("editorUpdate", { code });
+  });
 
   socket.on("disconnect", () => {
     // Cleanup
