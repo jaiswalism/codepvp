@@ -6,6 +6,7 @@ import { auth } from '../../firebaseConfig';
 // import { db } from '../../firebaseConfig';
 import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 function useAuth() {
     const [user, setUser] = useState<User | null>(null);
@@ -111,10 +112,12 @@ const RoomPage: React.FC = () => {
             <h2 className="text-4xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Room Lobby</h2>
             <p className="text-purple-300">Room Code: <span className="font-bold text-white tracking-widest">AX4-B7Y</span></p>
         </div>
+        <Link to="/MultiPlayer" >
         <button className="text-red-400 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
           Leave Room
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
         </button>
+        </Link>
       </div>
 
       {/* Teams Layout */}
