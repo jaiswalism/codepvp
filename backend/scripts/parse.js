@@ -33,7 +33,9 @@ function parseProblem(problemText) {
     const outputFormat = extractBetween('Output Format:', 'Constraints:');
     const constraints = extractBetween('Constraints:', '--- SAMPLES ---');
     const samplesBlock = extractBetween('--- SAMPLES ---', '--- HIDDEN TEST CASES ---');
-    const hiddenCasesBlock = problemText.split('--- HIDDEN TEST CASES ---')[1] || '';
+    
+    const hiddenCasesBlockRaw = problemText.split('--- HIDDEN TEST CASES ---')[1] || '';
+    const hiddenCasesBlock = hiddenCasesBlockRaw.split('==================================================')[0];
 
     const samples = parseTestCases(samplesBlock.replace(/Sample Input \d+:/g, 'Input:').replace(/Sample Output \d+:/g, 'Output:'));
     const hiddenTestCases = parseTestCases(hiddenCasesBlock);
