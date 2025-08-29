@@ -7,44 +7,62 @@ import { doc, getDoc } from 'firebase/firestore';
 import { io, Socket } from 'socket.io-client';
 import useAuth from '../hooks/useAuth';
 
+// interface ProblemData {
+//     category: string;
+//     difficulty: string;
+//     slug: string;
+//     title: string;
+//     stmt: string;
+//     testcases: {
+//             stdin: string;
+//             expected_output: string;
+//             hidden: boolean;
+//             display: {
+//                 input: string;
+//                 output: string
+//             }
+//     }[];
+//     constraints: string[];
+//     starter_code: {
+//       c: string;
+//       cpp: string;
+//       csharp: string;
+//       dart: string;
+//       elixir: string;
+//       erlang: string;
+//       golang: string;
+//       java: string;
+//       javascript: string;
+//       kotlin: string;
+//       php: string;
+//       python: string;
+//       python3: string;
+//       racket: string;
+//       ruby: string;
+//       rust: string;
+//       scala: string;
+//       swift: string;
+//       typescript: string;
+//     }
+//     tags: string[];
+// }
+
 interface ProblemData {
-    category: string;
-    difficulty: string;
-    slug: string;
-    title: string;
-    stmt: string;
-    testcases: {
-            stdin: string;
-            expected_output: string;
-            hidden: boolean;
-            display: {
-                input: string;
-                output: string
-            }
-    }[];
-    constraints: string[];
-    starter_code: {
-      c: string;
-      cpp: string;
-      csharp: string;
-      dart: string;
-      elixir: string;
-      erlang: string;
-      golang: string;
-      java: string;
-      javascript: string;
-      kotlin: string;
-      php: string;
-      python: string;
-      python3: string;
-      racket: string;
-      ruby: string;
-      rust: string;
-      scala: string;
-      swift: string;
-      typescript: string;
-    }
-    tags: string[];
+  constraints: string;
+  difficulty: string;
+  hiddenTestCases: {
+    input: string;
+    output: string;
+  }[];
+  inputFormat: string;
+  outputFormat: string;
+  samples: {
+    input: string;
+    output: string;
+  }[];
+  statement: string;
+  tags: string[];
+  title: string;
 }
 
 const Problem: React.FC = () => {
@@ -75,7 +93,7 @@ run_tests()
     // Fetch problem data
     useEffect(() => {
         if (!problemId) return;
-        getDocumentData("problems", problemId);
+        getDocumentData("ProblemsWithHTC", problemId);
     }, [problemId]);
 
     // Socket Connection
@@ -123,7 +141,7 @@ run_tests()
         const docSnap = await getDoc(docRef);
         if(docSnap.exists()) {
             setData(docSnap.data() as ProblemData);
-            setCode(docSnap.data().starter_code.python);
+            // setCode(docSnap.data().starter_code.python);
             console.log(docSnap.data());
         } else {
             console.log("GAY")
@@ -232,15 +250,23 @@ run_tests()
         <div className="w-1/2 p-6 overflow-y-auto">
           <h3 className="text-xl font-bold text-white mb-4">Problem Statement</h3>
           <p className="text-gray-300 mb-6">
-            { data?.stmt }
+            { data?.statement }
           </p>
-            {data?.testcases.filter(tc => !tc.hidden).map((tc, i) => (
+          <h3 className="text-xl font-bold text-white mb-4">Input Format</h3>
+          <p className="text-gray-300 mb-6">
+            { data?.inputFormat }
+          </p>
+          <h3 className="text-xl font-bold text-white mb-4">Output Format</h3>
+          <p className="text-gray-300 mb-6">
+            { data?.outputFormat }
+          </p>
+            {data?.samples.map((tc, i) => (
                 <div key={i}>
                 <h3 className="text-xl font-bold text-white mb-4">Example {i + 1}</h3>
                     <div className="bg-gray-900/50 p-4 rounded-lg mb-6">
                         <code className="text-gray-300">
-                        <span className="text-purple-400">Input:</span> { tc.display.input }<br/>
-                        <span className="text-purple-400">Output:</span> { tc.display.output }<br/>
+                        <span className="text-purple-400">Input:</span> <pre>{ tc.input }</pre> <br/>
+                        <span className="text-purple-400">Output:</span> <pre>{ tc.output }</pre>
                         </code>
                     </div>
                 </div>
@@ -264,9 +290,7 @@ run_tests()
 
           <h3 className="text-xl font-bold text-white mb-4">Constraints</h3>
           <ul className="list-disc list-inside text-gray-300 space-y-2">
-            {data?.constraints.map((c, i) => (
-                <li key={i}>{ c }</li>
-            ))}
+            {data?.constraints}
           </ul>
         </div>
 
