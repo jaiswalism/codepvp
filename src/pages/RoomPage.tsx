@@ -1,9 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged} from 'firebase/auth';
-import type { User } from 'firebase/auth';
-import { auth } from '../../firebaseConfig';
-// import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-// import { db } from '../../firebaseConfig';
 import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -44,7 +39,6 @@ const RoomPage: React.FC = () => {
   const { user } = useAuth();
   
   // Placeholder for the current user's ID
-  const currentUserId = user?.uid || "guest";
   const currentUserName = user?.displayName || user?.email || "Anon";
 
   const [socket, setSocket] = useState<any>(null);
@@ -64,6 +58,7 @@ const RoomPage: React.FC = () => {
     });
 
     return () => {
+        socket.emit("disconnectRoom", { currentUserName })
         socket.disconnect();
         socket.off("roomUpdate");
     }
@@ -71,13 +66,6 @@ const RoomPage: React.FC = () => {
   }, [roomId, currentUserName]);
 
   const handleJoinSlot = (team: 'A' | 'B', slotIndex: number) => {
-
-    // Prevent joining if already in a slot
-    if (teamA.includes(currentUserId) || teamB.includes(currentUserId)) {
-      alert("You are already in a slot!");
-      return;
-    }
-
     socket.emit("joinSlot", {
       roomId,
       team,
@@ -98,7 +86,7 @@ const RoomPage: React.FC = () => {
       <div className="w-full flex justify-between items-center mb-6">
         <div>
             <h2 className="text-4xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Room Lobby</h2>
-            <p className="text-purple-300">Room Code: <span className="font-bold text-white tracking-widest">AX4-B7Y</span></p>
+            <p className="text-purple-300">Room Code: <span className="font-bold text-white tracking-widest">{ roomId }</span></p>
         </div>
         <Link to="/MultiPlayer" >
         <button className="text-red-400 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
