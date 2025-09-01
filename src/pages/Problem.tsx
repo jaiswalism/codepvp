@@ -155,12 +155,14 @@ const Problem: React.FC = () => {
 
     const checkStatus = async (tokens: string[]) => {
       const tokenQuery = tokens.join(",")
-        const url = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}?base64_encoded=true&fields=*`;
+        const baseUrl = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
         const options = {
         method: 'GET',
         headers: {
             'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
             'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
         },
         };
 
@@ -170,6 +172,7 @@ const Problem: React.FC = () => {
           let results: any[] = [];
 
           while (!allDone) {
+            const url = `${baseUrl}&_=${Date.now()}`
             let response = await fetch(url, options);
             if (!response.ok) {
               throw new Error(`HTTP error! status: ${response.status}`);
@@ -195,6 +198,12 @@ const Problem: React.FC = () => {
 
 
           results.forEach((res: any, idx: number) => {
+
+            if (!res || !res.status) {
+              console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
+              return;
+            }
+
             const stdout = res.stdout ? atob(res.stdout) : null;
             const stderr = res.stderr ? atob(res.stderr) : null;
             const compileError = res.compile_output ? atob(res.compile_output) : null;
@@ -249,6 +258,8 @@ const Problem: React.FC = () => {
             }
           );
         })
+
+        console.log(submissions);
 
         const options = {
             method: 'POST',
