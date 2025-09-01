@@ -3,6 +3,8 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
+const PORT = process.env.PORT || "4000";
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
@@ -99,4 +101,4 @@ io.on("connection", (socket) => {
 
 });
 
-server.listen(4000, () => console.log("🚀 Server running on :4000"));
+server.listen(PORT, () => console.log(`🚀 Server running on :${PORT}`));
