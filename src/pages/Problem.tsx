@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import { useParams } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { io, Socket } from 'socket.io-client';
 import useAuth from '../hooks/useAuth';
+import { debounce } from 'lodash';
 
 // interface ProblemData {
 //     category: string;
@@ -79,6 +80,13 @@ const Problem: React.FC = () => {
 
     const[code, setCode] = useState("");
 
+    const sendChange = useMemo(() =>
+    debounce((newValue: string) => {
+      socket?.emit("editorChange", { roomId, problemId, code: newValue });
+    }, 200),
+  [socket, roomId, problemId]);
+
+
 //     const twoSumHarness = `
 // def run_tests() :
 //     output = twoSum([3, 2, 4], 6)
@@ -123,7 +131,14 @@ const Problem: React.FC = () => {
             if (editorRef.current) {
                 const current = editorRef.current.getValue();
                 if (current !== data.code) {
-                    editorRef.current.setValue(data.code);
+                  const editor = editorRef.current;
+                  const model = editor?.getModel();
+                  if (model) {
+                    const fullRange = model.getFullModelRange();
+                    model.pushEditOperations([], [
+                      { range: fullRange, text: data.code }
+                    ], () => null);
+                  }
                 }
             }
         };
@@ -369,11 +384,7 @@ const Problem: React.FC = () => {
                 onChange={(newValue) => {
                   setCode(newValue || "");
 
-                  socket?.emit("editorChange", {
-                    roomId,
-                    problemId,
-                    code: newValue
-                  })
+                  sendChange(newValue || "");
                 }}
             />
           </div>
