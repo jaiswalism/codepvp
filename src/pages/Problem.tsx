@@ -1,84 +1,146 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import { useParams } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+import useAuth from '../hooks/useAuth';
 
-interface ProblemData {
-    category: string;
-    difficulty: string;
-    slug: string;
-    title: string;
-    stmt: string;
-    testcases: {
-            stdin: string;
-            expected_output: string;
-            hidden: boolean;
-            display: {
-                input: string;
-                output: string
-            }
-    }[];
-    constraints: string[];
-    starter_code: {
-      c: string;
-      cpp: string;
-      csharp: string;
-      dart: string;
-      elixir: string;
-      erlang: string;
-      golang: string;
-      java: string;
-      javascript: string;
-      kotlin: string;
-      php: string;
-      python: string;
-      python3: string;
-      racket: string;
-      ruby: string;
-      rust: string;
-      scala: string;
-      swift: string;
-      typescript: string;
-    }
-    tags: string[];
+// interface ProblemData {
+//     category: string;
+//     difficulty: string;
+//     slug: string;
+//     title: string;
+//     stmt: string;
+//     testcases: {
+//             stdin: string;
+//             expected_output: string;
+//             hidden: boolean;
+//             display: {
+//                 input: string;
+//                 output: string
+//             }
+//     }[];
+//     constraints: string[];
+//     starter_code: {
+//       c: string;
+//       cpp: string;
+//       csharp: string;
+//       dart: string;
+//       elixir: string;
+//       erlang: string;
+//       golang: string;
+//       java: string;
+//       javascript: string;
+//       kotlin: string;
+//       php: string;
+//       python: string;
+//       python3: string;
+//       racket: string;
+//       ruby: string;
+//       rust: string;
+//       scala: string;
+//       swift: string;
+//       typescript: string;
+//     }
+//     tags: string[];
+// }
+
+export interface ProblemData {
+  constraints: string;
+  difficulty: string;
+  hiddenTestCases: {
+    input: string;
+    output: string;
+  }[];
+  inputFormat: string;
+  outputFormat: string;
+  samples: {
+    input: string;
+    output: string;
+  }[];
+  statement: string;
+  tags: string[];
+  title: string;
 }
 
 const Problem: React.FC = () => {
 
     const { problemId } = useParams<{ problemId: string }>();
+    const { roomId } = useParams<{ roomId: string }>();
+
+    const [socket, setSocket] = useState<Socket | null>(null);
 
     const [data, setData] = useState<ProblemData | null>(null);
 
+    const { user } = useAuth();
+    const currentUserName = user?.displayName || user?.email || "Anon";
+
     const[code, setCode] = useState("");
 
-    const twoSumHarness = `
-def run_tests() :
-    output = twoSum([3, 2, 4], 6)
-    expected = [1, 2]
-    if sorted(output) == sorted(expected):
-        print("Passed")
-    else:
-        print("Failed")
-run_tests()
-    `
+//     const twoSumHarness = `
+// def run_tests() :
+//     output = twoSum([3, 2, 4], 6)
+//     expected = [1, 2]
+//     if sorted(output) == sorted(expected):
+//         print("Passed")
+//     else:
+//         print("Failed")
+// run_tests()
+//     `
 
+    // Fetch problem data
     useEffect(() => {
-        if(problemId) {
-            console.log(problemId);
-            getDocumentData("problems", problemId);
-            console.log(data);
-        }
-    }, [problemId])
+        if (!problemId) return;
+        getDocumentData("ProblemsWithHTC", problemId);
+    }, [problemId]);
+
+    // Socket Connection
+    useEffect(() => {
+
+        if(!roomId || !problemId) return;
+
+        const s = io(import.meta.env.VITE_BACKEND_URL, {
+          query: { roomId, problemId, username: currentUserName },
+        });
+
+        setSocket(s);
+
+        s.emit("joinProblemRoom", { roomId, problemId, username: currentUserName });
+
+        return () => {
+            s.disconnect();
+        };
+
+    }, [roomId, problemId, currentUserName]);
+
+    // Listening changes on editor
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleRemoteChange = (data: { code: string }) => {
+            if (editorRef.current) {
+                const current = editorRef.current.getValue();
+                if (current !== data.code) {
+                    editorRef.current.setValue(data.code);
+                }
+            }
+        };
+
+        socket.on("editorUpdate", handleRemoteChange);
+
+        return () => {
+            socket.off("editorUpdate", handleRemoteChange);
+        };
+    }, [socket]);
 
     async function getDocumentData(collectionName: string, documentId: string) {
         const docRef = doc(db, collectionName, documentId);
         const docSnap = await getDoc(docRef);
         if(docSnap.exists()) {
             setData(docSnap.data() as ProblemData);
-            setCode(docSnap.data().starter_code.python);
+            // setCode(docSnap.data().starter_code.python);
             console.log(docSnap.data());
         } else {
             console.log("GAY")
@@ -91,47 +153,78 @@ run_tests()
         editorRef.current = editorInstance;
     }
 
-    const checkStatus = async (token: string) => {
-        const url = `https://judge0-ce.p.rapidapi.com/submissions/${token}?base64_encoded=true&fields=*`;
+    const checkStatus = async (tokens: string[]) => {
+      const tokenQuery = tokens.join(",")
+        const baseUrl = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
         const options = {
         method: 'GET',
         headers: {
             'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
             'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
         },
         };
 
         try {
-        let response = await fetch(url, options);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        let data = await response.json();
-        let statusId = data.status?.id;
 
-        // Keep polling until the submission is processed (status 1 or 2)
-        while (statusId === 1 || statusId === 2) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            response = await fetch(url, options);
+          let allDone = false;
+          let results: any[] = [];
+
+          while (!allDone) {
+            const url = `${baseUrl}&_=${Date.now()}`
+            let response = await fetch(url, options);
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+              throw new Error(`HTTP error! status: ${response.status}`);
             }
-            data = await response.json();
-            statusId = data.status?.id;
-        }
-        
-        // Decode the Base64 output
-        const stdout = data.stdout ? atob(data.stdout) : null;
-        const stderr = data.stderr ? atob(data.stderr) : null;
-        const compileError = data.compile_output ? atob(data.compile_output) : null;
-        
-        let finalOutput = '';
-        if (stdout) finalOutput += `Output:\n${stdout}\n`;
-        if (stderr) finalOutput += `Error:\n${stderr}\n`;
-        if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
-        if (!stdout && !stderr && !compileError) finalOutput = "Execution successful, but no output.";
-        console.log(finalOutput);
-        
+
+            let data = await response.json();
+            results = data.submissions || data; // judge0 sometimes wraps inside `submissions`
+
+            // Guard: remove nulls
+            results = results.filter((res: any) => res !== null);
+
+            // If we still have missing results, keep polling
+            allDone =
+              results.length === tokens.length &&
+              results.every(
+                (res: any) => res.status?.id !== 1 && res.status?.id !== 2
+              );
+
+            if (!allDone) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          }
+
+
+          results.forEach((res: any, idx: number) => {
+
+            if (!res || !res.status) {
+              console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
+              return;
+            }
+
+            const stdout = res.stdout ? atob(res.stdout) : null;
+            const stderr = res.stderr ? atob(res.stderr) : null;
+            const compileError = res.compile_output ? atob(res.compile_output) : null;
+
+            const verdict = res.status?.description || "Unknown";
+            const passed = res.status?.id === 3; // 3 = Accepted
+
+            let finalOutput = `\nTestcase ${idx + 1}:\nStatus: ${verdict}\n`;
+            if (stdout) finalOutput += `Output:\n${stdout}\n`;
+            if (stderr) finalOutput += `Error:\n${stderr}\n`;
+            if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
+
+            if (passed) {
+              finalOutput += "✅ Test Passed!\n";
+            } else {
+              finalOutput += "❌ Test Failed!\n";
+            }
+
+            console.log(finalOutput);
+          });
+          
         } catch (err: any) {
             console.error(err);
         }
@@ -139,7 +232,35 @@ run_tests()
 
     async function Run() {
         const sourceCode = editorRef.current?.getValue();
-        const url = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&fields=*';
+        const url = 'https://judge0-ce.p.rapidapi.com/submissions/batch?fields=*';
+        const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
+        let submissions: {}[] = [];
+
+        // get sample testcases
+        data?.samples.map((tc) => {
+          submissions.push(
+            {
+              source_code: normalizedCode,
+              language_id: 71,
+              stdin: tc.input,
+              expected_output: tc.output,
+            }
+          );
+        })
+
+        data?.hiddenTestCases.map((tc) => {
+          submissions.push(
+            {
+              source_code: normalizedCode,
+              language_id: 71,
+              stdin: tc.input,
+              expected_output: tc.output,
+            }
+          );
+        })
+
+        console.log(submissions);
+
         const options = {
             method: 'POST',
             headers: {
@@ -148,8 +269,7 @@ run_tests()
                 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
             },
             body: JSON.stringify({
-                language_id: 71,
-                source_code: btoa(sourceCode+twoSumHarness),
+              submissions: submissions
             }),
         };
 
@@ -160,7 +280,8 @@ run_tests()
                 throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            checkStatus(data.token);
+            const tokens = data.map((d: any) => d.token);
+            await checkStatus(tokens);
         } catch (err: any) {
             console.error(err);
         }
@@ -187,15 +308,23 @@ run_tests()
         <div className="w-1/2 p-6 overflow-y-auto">
           <h3 className="text-xl font-bold text-white mb-4">Problem Statement</h3>
           <p className="text-gray-300 mb-6">
-            { data?.stmt }
+            { data?.statement }
           </p>
-            {data?.testcases.filter(tc => !tc.hidden).map((tc, i) => (
+          <h3 className="text-xl font-bold text-white mb-4">Input Format</h3>
+          <p className="text-gray-300 mb-6">
+            { data?.inputFormat }
+          </p>
+          <h3 className="text-xl font-bold text-white mb-4">Output Format</h3>
+          <p className="text-gray-300 mb-6">
+            { data?.outputFormat }
+          </p>
+            {data?.samples.map((tc, i) => (
                 <div key={i}>
                 <h3 className="text-xl font-bold text-white mb-4">Example {i + 1}</h3>
                     <div className="bg-gray-900/50 p-4 rounded-lg mb-6">
                         <code className="text-gray-300">
-                        <span className="text-purple-400">Input:</span> { tc.display.input }<br/>
-                        <span className="text-purple-400">Output:</span> { tc.display.output }<br/>
+                        <span className="text-purple-400">Input:</span> <pre>{ tc.input }</pre> <br/>
+                        <span className="text-purple-400">Output:</span> <pre>{ tc.output }</pre>
                         </code>
                     </div>
                 </div>
@@ -219,9 +348,7 @@ run_tests()
 
           <h3 className="text-xl font-bold text-white mb-4">Constraints</h3>
           <ul className="list-disc list-inside text-gray-300 space-y-2">
-            {data?.constraints.map((c, i) => (
-                <li key={i}>{ c }</li>
-            ))}
+            {data?.constraints}
           </ul>
         </div>
 
@@ -239,6 +366,15 @@ run_tests()
                     wordWrap: 'on',
                 }}
                 onMount={handleEditorDidMount}
+                onChange={(newValue) => {
+                  setCode(newValue || "");
+
+                  socket?.emit("editorChange", {
+                    roomId,
+                    problemId,
+                    code: newValue
+                  })
+                }}
             />
           </div>
           <div className="flex justify-end items-center p-4 bg-gray-900/50 border-t border-gray-700/50 gap-4">
