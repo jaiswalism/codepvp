@@ -47,7 +47,7 @@ import useAuth from '../hooks/useAuth';
 //     tags: string[];
 // }
 
-interface ProblemData {
+export interface ProblemData {
   constraints: string;
   difficulty: string;
   hiddenTestCases: {
@@ -79,16 +79,16 @@ const Problem: React.FC = () => {
 
     const[code, setCode] = useState("");
 
-    const twoSumHarness = `
-def run_tests() :
-    output = twoSum([3, 2, 4], 6)
-    expected = [1, 2]
-    if sorted(output) == sorted(expected):
-        print("Passed")
-    else:
-        print("Failed")
-run_tests()
-    `
+//     const twoSumHarness = `
+// def run_tests() :
+//     output = twoSum([3, 2, 4], 6)
+//     expected = [1, 2]
+//     if sorted(output) == sorted(expected):
+//         print("Passed")
+//     else:
+//         print("Failed")
+// run_tests()
+//     `
 
     // Fetch problem data
     useEffect(() => {
@@ -126,7 +126,6 @@ run_tests()
                     editorRef.current.setValue(data.code);
                 }
             }
-            console.log("Changed")
         };
 
         socket.on("editorUpdate", handleRemoteChange);
@@ -154,8 +153,9 @@ run_tests()
         editorRef.current = editorInstance;
     }
 
-    const checkStatus = async (token: string) => {
-        const url = `https://judge0-ce.p.rapidapi.com/submissions/${token}?base64_encoded=true&fields=*`;
+    const checkStatus = async (tokens: string[]) => {
+      const tokenQuery = tokens.join(",")
+        const url = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}?base64_encoded=true&fields=*`;
         const options = {
         method: 'GET',
         headers: {
@@ -165,36 +165,57 @@ run_tests()
         };
 
         try {
-        let response = await fetch(url, options);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        let data = await response.json();
-        let statusId = data.status?.id;
 
-        // Keep polling until the submission is processed (status 1 or 2)
-        while (statusId === 1 || statusId === 2) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            response = await fetch(url, options);
+          let allDone = false;
+          let results: any[] = [];
+
+          while (!allDone) {
+            let response = await fetch(url, options);
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+              throw new Error(`HTTP error! status: ${response.status}`);
             }
-            data = await response.json();
-            statusId = data.status?.id;
-        }
-        
-        // Decode the Base64 output
-        const stdout = data.stdout ? atob(data.stdout) : null;
-        const stderr = data.stderr ? atob(data.stderr) : null;
-        const compileError = data.compile_output ? atob(data.compile_output) : null;
-        
-        let finalOutput = '';
-        if (stdout) finalOutput += `Output:\n${stdout}\n`;
-        if (stderr) finalOutput += `Error:\n${stderr}\n`;
-        if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
-        if (!stdout && !stderr && !compileError) finalOutput = "Execution successful, but no output.";
-        console.log(finalOutput);
-        
+
+            let data = await response.json();
+            results = data.submissions || data; // judge0 sometimes wraps inside `submissions`
+
+            // Guard: remove nulls
+            results = results.filter((res: any) => res !== null);
+
+            // If we still have missing results, keep polling
+            allDone =
+              results.length === tokens.length &&
+              results.every(
+                (res: any) => res.status?.id !== 1 && res.status?.id !== 2
+              );
+
+            if (!allDone) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          }
+
+
+          results.forEach((res: any, idx: number) => {
+            const stdout = res.stdout ? atob(res.stdout) : null;
+            const stderr = res.stderr ? atob(res.stderr) : null;
+            const compileError = res.compile_output ? atob(res.compile_output) : null;
+
+            const verdict = res.status?.description || "Unknown";
+            const passed = res.status?.id === 3; // 3 = Accepted
+
+            let finalOutput = `\nTestcase ${idx + 1}:\nStatus: ${verdict}\n`;
+            if (stdout) finalOutput += `Output:\n${stdout}\n`;
+            if (stderr) finalOutput += `Error:\n${stderr}\n`;
+            if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
+
+            if (passed) {
+              finalOutput += "✅ Test Passed!\n";
+            } else {
+              finalOutput += "❌ Test Failed!\n";
+            }
+
+            console.log(finalOutput);
+          });
+          
         } catch (err: any) {
             console.error(err);
         }
@@ -202,7 +223,33 @@ run_tests()
 
     async function Run() {
         const sourceCode = editorRef.current?.getValue();
-        const url = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&fields=*';
+        const url = 'https://judge0-ce.p.rapidapi.com/submissions/batch?fields=*';
+        const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
+        let submissions: {}[] = [];
+
+        // get sample testcases
+        data?.samples.map((tc) => {
+          submissions.push(
+            {
+              source_code: normalizedCode,
+              language_id: 71,
+              stdin: tc.input,
+              expected_output: tc.output,
+            }
+          );
+        })
+
+        data?.hiddenTestCases.map((tc) => {
+          submissions.push(
+            {
+              source_code: normalizedCode,
+              language_id: 71,
+              stdin: tc.input,
+              expected_output: tc.output,
+            }
+          );
+        })
+
         const options = {
             method: 'POST',
             headers: {
@@ -211,8 +258,7 @@ run_tests()
                 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
             },
             body: JSON.stringify({
-                language_id: 71,
-                source_code: btoa(sourceCode+twoSumHarness),
+              submissions: submissions
             }),
         };
 
@@ -223,7 +269,8 @@ run_tests()
                 throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            checkStatus(data.token);
+            const tokens = data.map((d: any) => d.token);
+            await checkStatus(tokens);
         } catch (err: any) {
             console.error(err);
         }
@@ -310,8 +357,6 @@ run_tests()
                 onMount={handleEditorDidMount}
                 onChange={(newValue) => {
                   setCode(newValue || "");
-
-                  console.log(code);
 
                   socket?.emit("editorChange", {
                     roomId,

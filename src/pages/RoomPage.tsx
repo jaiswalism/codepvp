@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 type PlayerSlotProps = {
     player: string | null;
@@ -75,6 +76,12 @@ const RoomPage: React.FC = () => {
 
   };
 
+  const navigate = useNavigate();
+
+  const handleStart = () => {
+    navigate(`/room/${roomId}/problemset/team/${teamA.includes(currentUserName) ? "A" : "B"}`)
+  }
+
   return (
     <div className='bg-gray-900 flex justify-center items-center h-dvh w-dvw ' >
     <div className="z-10 flex flex-col p-8 max-w-5xl w-full
@@ -134,7 +141,8 @@ const RoomPage: React.FC = () => {
         transition-all duration-300 transform hover:scale-105
         hover:bg-transparent hover:text-green-300
         hover:shadow-[0_0_20px_rgba(74,222,128,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
-        disabled={!teamA.every(p => p) || !teamB.every(p => p)}
+        // disabled={!teamA.every(p => p) || !teamB.every(p => p)}
+        onClick={handleStart}
       >
         Start Game
       </button>
