@@ -1,4 +1,3 @@
-// server.js
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -73,9 +72,9 @@ io.on("connection", (socket) => {
     console.log(`${username} joined ${problemId} in room ${roomId}`);
   });
 
-  socket.on("editorChange", ({ roomId, problemId, code }) => {
+  socket.on("editorChange", ({ roomId, problemId, code, source }) => {
     // Broadcast to everyone else in the same room/problem
-    socket.to(problemId).emit("editorUpdate", { code });
+    socket.to(problemId).emit("editorUpdate", { code, source });
   });
 
   socket.on("disconnectRoom", ({ username }) => {

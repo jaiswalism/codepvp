@@ -82,9 +82,9 @@ const Problem: React.FC = () => {
 
     const sendChange = useMemo(() =>
     debounce((newValue: string) => {
-      socket?.emit("editorChange", { roomId, problemId, code: newValue });
-    }, 200),
-  [socket, roomId, problemId]);
+      socket?.emit("editorChange", { roomId, problemId, code: newValue, source: currentUserName });
+    }, 1000),
+  [socket, roomId, problemId, currentUserName]);
 
 
 //     const twoSumHarness = `
@@ -127,19 +127,15 @@ const Problem: React.FC = () => {
     useEffect(() => {
         if (!socket) return;
 
-        const handleRemoteChange = (data: { code: string }) => {
-            if (editorRef.current) {
-                const current = editorRef.current.getValue();
-                if (current !== data.code) {
-                  const editor = editorRef.current;
-                  const model = editor?.getModel();
-                  if (model) {
-                    const fullRange = model.getFullModelRange();
-                    model.pushEditOperations([], [
-                      { range: fullRange, text: data.code }
-                    ], () => null);
-                  }
-                }
+        const handleRemoteChange = (data: { code: string; source: string }) => {
+
+            if(data.source == currentUserName) return;
+
+            const editor = editorRef.current;
+            const model = editor?.getModel();
+            if (model && model.getValue() !== data.code) {
+              const fullRange = model.getFullModelRange();
+              model.pushEditOperations([], [{ range: fullRange, text: data.code }], () => null);
             }
         };
 
