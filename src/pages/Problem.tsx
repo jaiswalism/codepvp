@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { socket } from '../utils/socket';
-import useAuth from '../hooks/useAuth';
+import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
 
 // interface ProblemData {
@@ -73,7 +73,7 @@ const Problem: React.FC = () => {
 
     const [data, setData] = useState<ProblemData | null>(null);
 
-    const { user } = useAuth();
+    const { user } = useUser();
     const currentUserName = user?.displayName || user?.email || "Anon";
 
     const[code, setCode] = useState("");

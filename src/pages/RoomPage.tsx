@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { socket } from '../utils/socket';
 import { useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
+import { useUser } from '../hooks/useUser';
 import { useNavigate } from 'react-router-dom';
 
 type PlayerSlotProps = {
@@ -38,12 +38,13 @@ const RoomPage: React.FC = () => {
   const navigate = useNavigate();
 
   //getting firebase user
-  const { user } = useAuth();
+  const { user } = useUser();
   
   // Placeholder for the current user's ID
   const currentUserName = user?.displayName || user?.email || "Anon";
 
   useEffect(() => {
+    if(!currentUserName) return;
 
     socket.emit("joinRoom", {roomId, username: currentUserName});
 
@@ -58,7 +59,7 @@ const RoomPage: React.FC = () => {
     })
 
     return () => {
-        socket.emit("disconnectRoom", { currentUserName })
+        socket.emit("disconnectRoom", { username: currentUserName })
         socket.off("roomUpdate");
         socket.off("navigateToProblemset");
     }
