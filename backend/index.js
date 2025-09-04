@@ -40,6 +40,9 @@ io.on("connection", (socket) => {
 
     console.log(`User ${username} joined room ${roomId}`);
 
+    socket.username = username;
+    socket.roomId = roomId;
+
     const existing = userToRoom[username];
     if (existing && existing.roomId !== roomId) {
       const oldRoom = rooms[existing.roomId];
@@ -112,14 +115,33 @@ io.on("connection", (socket) => {
     io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId });
   });
 
-  socket.on("disconnectRoom", ({ username }) => {
+  socket.on("disconnectRoom", ({ username, roomId }) => {
     // Cleanup
+    const room = rooms[roomId];
+    if(!room) return;
+
+    console.log("❌ Disconnected:", username, "from Room:", roomId);
+
+    // Remove user
+    room.teamA = room.teamA.map((p) => (p === username ? null : p));
+    room.teamB = room.teamB.map((p) => (p === username ? null : p));
+
+    delete userToRoom[username];
+
+    io.to(roomId).emit("roomUpdate", room);
+  });
+
+  socket.on("disconnect", () => {
+    // Cleanup
+    const username = socket.username;
+    if(!username) return;
+
     const data = userToRoom[username];
     if(!data) return;
 
     const { roomId } = data;
 
-    console.log("❌ Disconnected:", username, "From room:", roomId);
+    console.log("❌ Disconnected:", username);
 
     const room = rooms[roomId];
     if(!room) return;
@@ -129,8 +151,6 @@ io.on("connection", (socket) => {
     room.teamB = room.teamB.map((p) => (p === username ? null : p));
 
     delete userToRoom[username];
-
-    io.to(roomId).emit("roomUpdate", room);
   });
 
 });

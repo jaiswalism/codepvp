@@ -59,7 +59,7 @@ const RoomPage: React.FC = () => {
     })
 
     return () => {
-        socket.emit("disconnectRoom", { username: currentUserName })
+        socket.emit("disconnectRoom", {username: currentUserName, roomId})
         socket.off("roomUpdate");
         socket.off("navigateToProblemset");
     }
