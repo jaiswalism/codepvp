@@ -4,7 +4,7 @@ import { editor } from 'monaco-editor'
 import { useParams } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { io, Socket } from 'socket.io-client';
+import { socket } from '../utils/socket';
 import useAuth from '../hooks/useAuth';
 import { debounce } from 'lodash';
 
@@ -71,8 +71,6 @@ const Problem: React.FC = () => {
     const { problemId } = useParams<{ problemId: string }>();
     const { roomId } = useParams<{ roomId: string }>();
 
-    const [socket, setSocket] = useState<Socket | null>(null);
-
     const [data, setData] = useState<ProblemData | null>(null);
 
     const { user } = useAuth();
@@ -109,16 +107,10 @@ const Problem: React.FC = () => {
 
         if(!roomId || !problemId) return;
 
-        const s = io(import.meta.env.VITE_BACKEND_URL, {
-          query: { roomId, problemId, username: currentUserName },
-        });
-
-        setSocket(s);
-
-        s.emit("joinProblemRoom", { roomId, problemId, username: currentUserName });
+        socket.emit("joinProblemRoom", { roomId, problemId, username: currentUserName });
 
         return () => {
-            s.disconnect();
+            socket.disconnect();
         };
 
     }, [roomId, problemId, currentUserName]);

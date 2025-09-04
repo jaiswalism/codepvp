@@ -3,6 +3,7 @@ import { getDocs, collection, query, where, limit } from "firebase/firestore";
 import type { ProblemData } from "./Problem";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { socket } from "../utils/socket";
 
 type ProblemWithMeta = ProblemData & { id: string; solved: boolean };
 
@@ -47,6 +48,25 @@ export default function Problemset() {
     };
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+      socket.emit("joinProblemset", { roomId, teamId })
+  }, [roomId, teamId]);
+
+  useEffect(() => {
+    socket.on("solvedProblem", ({ problemId }) => {
+      setData(prev => 
+        prev?.map(p => 
+          p.id === problemId ? {...p, solved: true} : p
+        ) || []
+      );
+    });
+
+    return () => {
+      socket.off("solvedProblem");
+    };
+
   }, []);
 
   return (

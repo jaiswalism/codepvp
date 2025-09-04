@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
+import { socket } from '../utils/socket';
 import { useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
@@ -35,6 +35,7 @@ const RoomPage: React.FC = () => {
   const [teamA, setTeamA] = useState<(string | null)[]>([null, null]);
   const [teamB, setTeamB] = useState<(string | null)[]>([null, null]);
   const { roomId } = useParams();
+  const navigate = useNavigate();
 
   //getting firebase user
   const { user } = useAuth();
@@ -42,14 +43,7 @@ const RoomPage: React.FC = () => {
   // Placeholder for the current user's ID
   const currentUserName = user?.displayName || user?.email || "Anon";
 
-  const [socket, setSocket] = useState<any>(null);
-
   useEffect(() => {
-
-    const socket = io(import.meta.env.VITE_BACKEND_URL, {
-      query: { roomId, currentUserName },
-    });
-    setSocket(socket);
 
     socket.emit("joinRoom", {roomId, username: currentUserName});
 
@@ -58,10 +52,15 @@ const RoomPage: React.FC = () => {
       setTeamB(room.teamB);
     });
 
+    socket.on("navigateToProblemset", ({roomId, room}) => {
+      const team = room.teamA.includes(currentUserName) ? "A" : "B";
+      navigate(`/room/${roomId}/problemset/team/${team}`);
+    })
+
     return () => {
         socket.emit("disconnectRoom", { currentUserName })
-        socket.disconnect();
         socket.off("roomUpdate");
+        socket.off("navigateToProblemset");
     }
 
   }, [roomId, currentUserName]);
@@ -76,10 +75,8 @@ const RoomPage: React.FC = () => {
 
   };
 
-  const navigate = useNavigate();
-
   const handleStart = () => {
-    navigate(`/room/${roomId}/problemset/team/${teamA.includes(currentUserName) ? "A" : "B"}`)
+    socket.emit("startGame", { roomId })
   }
 
   return (
@@ -141,7 +138,7 @@ const RoomPage: React.FC = () => {
         transition-all duration-300 transform hover:scale-105
         hover:bg-transparent hover:text-green-300
         hover:shadow-[0_0_20px_rgba(74,222,128,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
-        // disabled={!teamA.every(p => p) || !teamB.every(p => p)}
+        disabled={!teamA.some(p => p) || !teamB.some(p => p)}
         onClick={handleStart}
       >
         Start Game
