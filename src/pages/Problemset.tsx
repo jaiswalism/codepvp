@@ -1,8 +1,9 @@
 import { db } from "../../firebaseConfig";
-import { getDocs, collection, query, where, limit } from "firebase/firestore";
+import { getDocs, collection, query, where, limit, setDoc, doc } from "firebase/firestore";
 import type { ProblemData } from "./Problem";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { socket } from "../utils/socket";
 
 type ProblemWithMeta = ProblemData & { id: string; solved: boolean };
 
@@ -24,6 +25,7 @@ const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
 };
 
 export default function Problemset() {
+
     const [data, setData] = useState<ProblemWithMeta[] | null>(null);
 
     const { teamId, roomId } = useParams();
@@ -44,9 +46,34 @@ export default function Problemset() {
         ...doc.data()
       })) as ProblemWithMeta[];
       setData(docs);
+      await setDoc(doc(db, "problemSet", roomId!), {
+        problems: docs.map((doc) => ({
+          id: doc.id,
+          title: doc.title,
+        })),
+      })
     };
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+      socket.emit("joinProblemset", { roomId, teamId })
+  }, [roomId, teamId]);
+
+  useEffect(() => {
+    socket.on("solvedProblem", ({ problemId }) => {
+      setData(prev => 
+        prev?.map(p => 
+          p.id === problemId ? {...p, solved: true} : p
+        ) || []
+      );
+    });
+
+    return () => {
+      socket.off("solvedProblem");
+    };
+
   }, []);
 
   return (

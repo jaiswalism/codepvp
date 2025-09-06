@@ -9,10 +9,12 @@ import MultiPlayer from "./pages/MultiPlayer"
 import RoomPage from "./pages/RoomPage"
 import Problemset from "./pages/Problemset"
 import './App.css'
+import { UserProvider } from "./utils/userProvider"
 
 function App() {
 
   return (
+    <UserProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
@@ -27,6 +29,7 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </UserProvider>
   )
 }
 

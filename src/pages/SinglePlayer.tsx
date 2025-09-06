@@ -1,19 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../../firebaseConfig';
 import { useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useUser } from '../hooks/useUser';
 
 const SinglePlayer: React.FC = () => {
 
     const navigate = useNavigate();
 
+    const { user } = useUser()
+
     useEffect(() => {
-        onAuthStateChanged(auth, (user) => {
-            if(!user) {
-                navigate('/login');
-            }
-        })
+        if(!user) navigate("/login");
     })
 
     const handleClick = () => {

@@ -1,6 +1,26 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { createClient } from 'redis';
+import 'dotenv/config';
+
+const client = createClient({
+    username: 'default',
+    password: process.env.REDIS_PASS,
+    socket: {
+        host: 'redis-18903.c8.us-east-1-2.ec2.redns.redis-cloud.com',
+        port: 18903
+    }
+});
+
+client.on('error', err => console.log('Redis Client Error', err));
+
+await client.connect();
+
+// await client.set('foo', 'bar');
+// const result = await client.get('foo');
+// console.log(result)  // >>> bar
+// await client.del('foo');
 
 const PORT = process.env.PORT || "4000";
 
@@ -19,6 +39,9 @@ io.on("connection", (socket) => {
   socket.on("joinRoom", ({ roomId, username }) => {
 
     console.log(`User ${username} joined room ${roomId}`);
+
+    socket.username = username;
+    socket.roomId = roomId;
 
     const existing = userToRoom[username];
     if (existing && existing.roomId !== roomId) {
@@ -65,7 +88,14 @@ io.on("connection", (socket) => {
 
     // 3. Broadcast updated state
     io.to(roomId).emit("roomUpdate", room);
-    });
+  });
+
+  socket.on("startGame", ({ roomId }) => {
+    const room = rooms[roomId]
+    if(!room) return;
+
+    io.to(roomId).emit("navigateToProblemset", { roomId, room })
+  });
   
   socket.on("joinProblemRoom", ({roomId, problemId, username}) => {
     socket.join(problemId);
@@ -77,14 +107,41 @@ io.on("connection", (socket) => {
     socket.to(problemId).emit("editorUpdate", { code, source });
   });
 
-  socket.on("disconnectRoom", ({ username }) => {
+  socket.on("joinProblemset", ({ roomId, teamId }) => {
+    socket.join(`${roomId}-team-${teamId}`);
+  });
+
+  socket.on("markSolved", ({ roomId, teamId, problemId }) => {
+    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId });
+  });
+
+  socket.on("disconnectRoom", ({ username, roomId }) => {
     // Cleanup
+    const room = rooms[roomId];
+    if(!room) return;
+
+    console.log("❌ Disconnected:", username, "from Room:", roomId);
+
+    // Remove user
+    room.teamA = room.teamA.map((p) => (p === username ? null : p));
+    room.teamB = room.teamB.map((p) => (p === username ? null : p));
+
+    delete userToRoom[username];
+
+    io.to(roomId).emit("roomUpdate", room);
+  });
+
+  socket.on("disconnect", () => {
+    // Cleanup
+    const username = socket.username;
+    if(!username) return;
+
     const data = userToRoom[username];
     if(!data) return;
 
     const { roomId } = data;
 
-    console.log("❌ Disconnected:", username, "From room:", roomId);
+    console.log("❌ Disconnected:", username);
 
     const room = rooms[roomId];
     if(!room) return;
@@ -94,8 +151,6 @@ io.on("connection", (socket) => {
     room.teamB = room.teamB.map((p) => (p === username ? null : p));
 
     delete userToRoom[username];
-
-    io.to(roomId).emit("roomUpdate", room);
   });
 
 });
