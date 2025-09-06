@@ -7,6 +7,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
+import Hamburger from './components/Hamburger';
+
+import MenuIcon from '@mui/icons-material/Menu';
 
 // interface ProblemData {
 //     category: string;
@@ -108,10 +111,6 @@ const Problem: React.FC = () => {
         if(!roomId || !problemId) return;
 
         socket.emit("joinProblemRoom", { roomId, problemId, username: currentUserName });
-
-        return () => {
-            socket.disconnect();
-        };
 
     }, [roomId, problemId, currentUserName]);
 
@@ -298,6 +297,7 @@ const Problem: React.FC = () => {
       
       {/* Header */}
       <header className="flex justify-between items-center p-4 border-b border-gray-700/50">
+      <div><MenuIcon> <Hamburger /> </MenuIcon></div>
         <h2 className="text-2xl font-bold text-cyan-300">{ data?.title }</h2>
         {/* <button className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
