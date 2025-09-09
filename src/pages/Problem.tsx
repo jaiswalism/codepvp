@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
+import { OrbitProgress } from 'react-loading-indicators'
 
 
 // interface ProblemData {
@@ -74,6 +75,7 @@ const Problem: React.FC = () => {
     const { teamId } = useParams<{ teamId:string }>();
 
     const [data, setData] = useState<ProblemData | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const { user } = useUser();
     const currentUserName = user?.displayName || user?.email || "Anon";
@@ -219,9 +221,11 @@ const Problem: React.FC = () => {
         } catch (err: any) {
             console.error(err);
         }
+        setIsLoading(false)
     };
 
     async function Run() {
+        setIsLoading(true);
         const sourceCode = editorRef.current?.getValue();
         const url = 'https://judge0-ce.p.rapidapi.com/submissions/batch?fields=*';
         const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
@@ -279,10 +283,20 @@ const Problem: React.FC = () => {
     }
 
   return (
-    <div className="z-10 flex flex-col h-dvh w-full max-w-dvw
+    <div className="z-10 flex flex-col h-2dvh w-full max-w-dvw
       bg-black backdrop-blur-md 
       border border-cyan-400/20
       shadow-2xl shadow-cyan-500/10">
+
+        {isLoading && (
+          <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-black/30 z-50">
+          <OrbitProgress 
+            color="#32cd32" 
+            size="large" 
+            text="Testing"
+          />
+    </div>
+        )}
       
       {/* Header */}
       <header className="flex justify-between items-center p-4 border-b border-gray-700/50">
@@ -293,6 +307,7 @@ const Problem: React.FC = () => {
         </button>
       </header>
 
+      <div>
       {/* Main Content Area */}
       <div className="flex flex-grow overflow-hidden">
         {/* Left Side: Problem Description */}
@@ -320,22 +335,6 @@ const Problem: React.FC = () => {
                     </div>
                 </div>
             ))}
-          {/* <h3 className="text-xl font-bold text-white mb-4">Example 1</h3>
-          <div className="bg-gray-900/50 p-4 rounded-lg mb-6">
-            <code className="text-gray-300">
-              <span className="text-purple-400">Input:</span> { data?.testcases.display.input }<br/>
-              <span className="text-purple-400">Output:</span> [0, 1]<br/>
-              <span className="text-purple-400">Explanation:</span> Because nums[0] + nums[1] == 9, we return [0, 1].
-            </code>
-          </div> */}
-
-          {/* <h3 className="text-xl font-bold text-white mb-4">Example 2</h3>
-          <div className="bg-gray-900/50 p-4 rounded-lg mb-6">
-            <code className="text-gray-300">
-              <span className="text-purple-400">Input:</span> nums = [3, 2, 4], target = 6<br/>
-              <span className="text-purple-400">Output:</span> [1, 2]
-            </code>
-          </div> */}
 
           <h3 className="text-xl font-bold text-white mb-4">Constraints</h3>
           <ul className="list-disc list-inside text-gray-300 space-y-2">
@@ -346,10 +345,10 @@ const Problem: React.FC = () => {
         {/* Right Side: Code Editor and Actions */}
         <div className="w-1/2 flex flex-col border-l border-gray-700/50">
           {/* This is now just a placeholder for the editor */}
-          <div className="flex-grow bg-gray-900/50 p-4">
-             <Editor 
+          <div className="h-3/5 bg-gray-900/50 p-4">
+            <Editor 
                 theme="vs-dark" 
-                defaultLanguage='python' 
+                defaultLanguage='javascript' 
                 value={code} 
                 options={{
                     minimap: { enabled: false },
@@ -372,6 +371,7 @@ const Problem: React.FC = () => {
               Submit
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>
