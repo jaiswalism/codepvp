@@ -157,79 +157,82 @@ const Problem: React.FC = () => {
 
     const checkStatus = async (tokens: string[]) => {
       const tokenQuery = tokens.join(",")
-        const baseUrl = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
-        const options = {
+      const baseUrl = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+      const options = {
         method: 'GET',
         headers: {
-            'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
-            'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
+          'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
+          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
         },
-        };
+      };
 
-        try {
+      try {
+        let allDone = false;
+        let results: any[] = [];
 
-          let allDone = false;
-          let results: any[] = [];
-
-          while (!allDone) {
-            const url = `${baseUrl}&_=${Date.now()}`
-            let response = await fetch(url, options);
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            let data = await response.json();
-            results = data.submissions || data; // judge0 sometimes wraps inside `submissions`
-
-            // Guard: remove nulls
-            results = results.filter((res: any) => res !== null);
-
-            // If we still have missing results, keep polling
-            allDone =
-              results.length === tokens.length &&
-              results.every(
-                (res: any) => res.status?.id !== 1 && res.status?.id !== 2
-              );
-
-            if (!allDone) {
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-            }
+        while (!allDone) {
+          const url = `${baseUrl}&_=${Date.now()}`
+          let response = await fetch(url, options);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
 
+          let data = await response.json();
+          results = data.submissions || data; // judge0 sometimes wraps inside `submissions`
 
-          results.forEach((res: any, idx: number) => {
+          // Guard: remove nulls
+          results = results.filter((res: any) => res !== null);
 
-            if (!res || !res.status) {
-              console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
-              return;
-            }
+          // If we still have missing results, keep polling
+          allDone =
+            results.length === tokens.length &&
+            results.every(
+              (res: any) => res.status?.id !== 1 && res.status?.id !== 2
+            );
 
-            const stdout = res.stdout ? atob(res.stdout) : null;
-            const stderr = res.stderr ? atob(res.stderr) : null;
-            const compileError = res.compile_output ? atob(res.compile_output) : null;
-
-            const verdict = res.status?.description || "Unknown";
-            const passed = res.status?.id === 3; // 3 = Accepted
-
-            let finalOutput = `\nTestcase ${idx + 1}:\nStatus: ${verdict}\n`;
-            if (stdout) finalOutput += `Output:\n${stdout}\n`;
-            if (stderr) finalOutput += `Error:\n${stderr}\n`;
-            if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
-
-            if (passed) {
-              finalOutput += "✅ Test Passed!\n";
-            } else {
-              finalOutput += "❌ Test Failed!\n";
-            }
-
-            console.log(finalOutput);
-          });
-          
-        } catch (err: any) {
-            console.error(err);
+          if (!allDone) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
         }
+
+
+        results.forEach((res: any, idx: number) => {
+
+          if (!res || !res.status) {
+            console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
+            return;
+          }
+
+          const stdout = res.stdout ? atob(res.stdout) : null;
+          const stderr = res.stderr ? atob(res.stderr) : null;
+          const compileError = res.compile_output ? atob(res.compile_output) : null;
+
+          const verdict = res.status?.description || "Unknown";
+          const passed = res.status?.id === 3; // 3 = Accepted
+
+          let finalOutput = `\nTestcase ${idx + 1}:\nStatus: ${verdict}\n`;
+          if (stdout) finalOutput += `Output:\n${stdout}\n`;
+          if (stderr) finalOutput += `Error:\n${stderr}\n`;
+          if (compileError) finalOutput += `Compile Error:\n${compileError}\n`;
+
+          if (passed) {
+            finalOutput += "✅ Test Passed!\n";
+
+            if (socket && roomId && problemId) {
+              socket.emit("markSolved", { roomId, teamId: null, problemId });
+            }
+          } else {
+            finalOutput += "❌ Test Failed!\n";
+          }
+
+          console.log(finalOutput);
+        });
+          
+      } catch (err: any) {
+        console.error(err);
+      }
     };
 
     async function Run() {
