@@ -72,7 +72,7 @@ export interface ProblemData {
 const Problem: React.FC = () => {
 
     const { problemId } = useParams<{ problemId: string }>();
-    const { roomId } = useParams<{ roomId: string }>();
+  const { roomId, teamId } = useParams<{ roomId: string, teamId: string }>();
 
     const [data, setData] = useState<ProblemData | null>(null);
 
@@ -173,7 +173,7 @@ const Problem: React.FC = () => {
         let results: any[] = [];
 
         while (!allDone) {
-          const url = `${baseUrl}&_=${Date.now()}`
+          const url = `${baseUrl}&_=${Date.now()}`;
           let response = await fetch(url, options);
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -197,11 +197,11 @@ const Problem: React.FC = () => {
           }
         }
 
-
+        let allPassed = true;
         results.forEach((res: any, idx: number) => {
-
           if (!res || !res.status) {
             console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
+            allPassed = false;
             return;
           }
 
@@ -219,17 +219,17 @@ const Problem: React.FC = () => {
 
           if (passed) {
             finalOutput += "✅ Test Passed!\n";
-
-            if (socket && roomId && problemId) {
-              socket.emit("markSolved", { roomId, teamId: null, problemId });
-            }
           } else {
             finalOutput += "❌ Test Failed!\n";
+            allPassed = false;
           }
 
           console.log(finalOutput);
         });
-          
+
+        if (allPassed && socket && roomId && problemId && teamId) {
+          socket.emit("markSolved", { roomId, teamId, problemId });
+        }
       } catch (err: any) {
         console.error(err);
       }
