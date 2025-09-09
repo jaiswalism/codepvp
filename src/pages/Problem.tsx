@@ -1,15 +1,13 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
-import Hamburger from './components/Hamburger';
 
-import MenuIcon from '@mui/icons-material/Menu';
 
 // interface ProblemData {
 //     category: string;
@@ -73,6 +71,7 @@ const Problem: React.FC = () => {
 
     const { problemId } = useParams<{ problemId: string }>();
     const { roomId } = useParams<{ roomId: string }>();
+    const { teamId } = useParams<{ teamId:string }>();
 
     const [data, setData] = useState<ProblemData | null>(null);
 
@@ -81,23 +80,13 @@ const Problem: React.FC = () => {
 
     const[code, setCode] = useState("");
 
+    const navigate = useNavigate();
+
     const sendChange = useMemo(() =>
     debounce((newValue: string) => {
       socket?.emit("editorChange", { roomId, problemId, code: newValue, source: currentUserName });
     }, 1000),
   [socket, roomId, problemId, currentUserName]);
-
-
-//     const twoSumHarness = `
-// def run_tests() :
-//     output = twoSum([3, 2, 4], 6)
-//     expected = [1, 2]
-//     if sorted(output) == sorted(expected):
-//         print("Passed")
-//     else:
-//         print("Failed")
-// run_tests()
-//     `
 
     // Fetch problem data
     useEffect(() => {
@@ -297,12 +286,11 @@ const Problem: React.FC = () => {
       
       {/* Header */}
       <header className="flex justify-between items-center p-4 border-b border-gray-700/50">
-      <div><MenuIcon> <Hamburger /> </MenuIcon></div>
         <h2 className="text-2xl font-bold text-cyan-300">{ data?.title }</h2>
-        {/* <button className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          Back to Topics
-        </button> */}
+        <button onClick={() => navigate(`/room/${roomId}/problemset/team/${teamId}`)} className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            Back to Problemset
+        </button>
       </header>
 
       {/* Main Content Area */}
