@@ -112,7 +112,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("markSolved", ({ roomId, teamId, problemId }) => {
-    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId });
+    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId, teamId });
   });
 
   socket.on("disconnectRoom", ({ username, roomId }) => {

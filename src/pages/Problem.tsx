@@ -223,6 +223,7 @@ const Problem: React.FC = () => {
       } catch (err: any) {
         console.error(err);
       }
+      setIsLoading(false)
     };
 
     async function Run() {
@@ -349,7 +350,7 @@ const Problem: React.FC = () => {
           <div className="h-3/5 bg-gray-900/50 p-4">
             <Editor 
                 theme="vs-dark" 
-                defaultLanguage='javascript' 
+                defaultLanguage='python' 
                 value={code} 
                 options={{
                     minimap: { enabled: false },
