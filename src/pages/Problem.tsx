@@ -147,12 +147,12 @@ const Problem: React.FC = () => {
 
     const checkStatus = async (tokens: string[]) => {
       const tokenQuery = tokens.join(",")
-      const baseUrl = `https://judge0-ce.p.rapidapi.com/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+      const baseUrl = import.meta.env.VITE_JUDGE0_URL + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
       const options = {
         method: 'GET',
         headers: {
-          'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
-          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+          // 'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
+          // 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
           "Cache-Control": "no-cache",
           "Pragma": "no-cache",
         },
@@ -229,7 +229,7 @@ const Problem: React.FC = () => {
     async function Run() {
         setIsLoading(true);
         const sourceCode = editorRef.current?.getValue();
-        const url = 'https://judge0-ce.p.rapidapi.com/submissions/batch?fields=*';
+        const url = import.meta.env.VITE_JUDGE0_URL + '/submissions/batch?fields=*';
         const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
         let submissions: {}[] = [];
 
@@ -262,8 +262,8 @@ const Problem: React.FC = () => {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
-                'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
-                'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+                // 'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
+                // 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
             },
             body: JSON.stringify({
               submissions: submissions
