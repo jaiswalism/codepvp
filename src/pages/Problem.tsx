@@ -100,7 +100,7 @@ const Problem: React.FC = () => {
 
     const sendChange = useMemo(() =>
     debounce((newValue: string) => {
-      socket?.emit("editorChange", { roomId, problemId, code: newValue, source: currentUserName });
+      socket?.emit("editorChange", { roomId, teamId, problemId, code: newValue, source: currentUserName });
     }, 1000),
   [socket, roomId, problemId, currentUserName]);
 
@@ -115,7 +115,7 @@ const Problem: React.FC = () => {
 
         if(!roomId || !problemId) return;
 
-        socket.emit("joinProblemRoom", { roomId, problemId, username: currentUserName });
+        socket.emit("joinProblemRoom", { roomId, teamId, problemId, username: currentUserName });
 
     }, [roomId, problemId, currentUserName]);
 
