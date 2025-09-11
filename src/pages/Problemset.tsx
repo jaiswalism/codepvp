@@ -11,6 +11,26 @@ interface ProblemSet {
   statusB: boolean,
 }
 
+export const markTeamSolved = async (teamId: string, problemId: string, roomId: string) => {
+
+    const docRef = doc(db, "problemSet", roomId!);
+    const docSnap = await getDoc(docRef);
+
+    const problemArray = docSnap.data()?.problems;
+
+    const problemIdx = problemArray.findIndex((problem: ProblemSet) => problem.id === problemId)
+    console.log(problemIdx)
+
+    if(teamId == "A") {
+      problemArray[problemIdx].statusA = true;
+    } else {
+      problemArray[problemIdx].statusB = true;
+    }
+    await updateDoc(docRef, {
+      problems: problemArray 
+    });
+  }
+
 const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
   if (solved) {
     return (
@@ -78,29 +98,9 @@ export default function Problemset() {
       socket.emit("joinProblemset", { roomId, teamId })
   }, [roomId, teamId]);
 
-  const markTeamSolved = async (teamId: string, problemId: string) => {
-
-    const docRef = doc(db, "problemSet", roomId!);
-    const docSnap = await getDoc(docRef);
-
-    const problemArray = docSnap.data()?.problems;
-
-    const problemIdx = problemArray.findIndex((problem: ProblemSet) => problem.id === problemId)
-    console.log(problemIdx)
-
-    if(teamId == "A") {
-      problemArray[problemIdx].statusA = true;
-    } else {
-      problemArray[problemIdx].statusB = true;
-    }
-    await updateDoc(docRef, {
-      problems: problemArray 
-    });
-  }
-
   useEffect(() => {
     socket.on("solvedProblem", ({ problemId, teamId }) => {
-      markTeamSolved(teamId, problemId)
+      markTeamSolved(teamId, problemId, roomId!)
       console.log(data);
     });
 
