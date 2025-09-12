@@ -1,7 +1,7 @@
 
 export default function Hamburger() {
     return(
-        <div>
+        <div className="text-amber-50" >
             Helo
         </div>
     );

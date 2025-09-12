@@ -1,11 +1,35 @@
 import { db } from "../../firebaseConfig";
-import { getDocs, collection, query, where, limit, setDoc, doc } from "firebase/firestore";
-import type { ProblemData } from "./Problem";
+import { getDocs, getDoc, collection, query, where, limit, setDoc, doc, updateDoc } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { socket } from "../utils/socket";
 
-type ProblemWithMeta = ProblemData & { id: string; solved: boolean };
+interface ProblemSet {
+  title: string,
+  id: string,
+  statusA: boolean,
+  statusB: boolean,
+}
+
+export const markTeamSolved = async (teamId: string, problemId: string, roomId: string) => {
+
+    const docRef = doc(db, "problemSet", roomId!);
+    const docSnap = await getDoc(docRef);
+
+    const problemArray = docSnap.data()?.problems;
+
+    const problemIdx = problemArray.findIndex((problem: ProblemSet) => problem.id === problemId)
+    console.log(problemIdx)
+
+    if(teamId == "A") {
+      problemArray[problemIdx].statusA = true;
+    } else {
+      problemArray[problemIdx].statusB = true;
+    }
+    await updateDoc(docRef, {
+      problems: problemArray 
+    });
+  }
 
 const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
   if (solved) {
@@ -26,7 +50,7 @@ const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
 
 export default function Problemset() {
 
-    const [data, setData] = useState<ProblemWithMeta[] | null>(null);
+    const [data, setData] = useState<ProblemSet[] | null>(null);
 
     const { teamId, roomId } = useParams();
 
@@ -34,6 +58,16 @@ export default function Problemset() {
 
     useEffect(() => {
     const fetchData = async () => {
+
+      const docRef = doc(db, "problemSet", roomId!)
+      const docSnap = await getDoc(docRef)
+
+      if(docSnap.exists()) {
+        const docs = docSnap.data().problems as ProblemSet[]
+        setData(docs)
+      } else {
+
+      // First four easy q (Temporary)
       const q = query(
         collection(db, "ProblemsWithHTC"),
         where("difficulty", "==", "Easy"),
@@ -42,16 +76,19 @@ export default function Problemset() {
       const querySnapshot = await getDocs(q);
       const docs = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        solved: false,
         ...doc.data()
-      })) as ProblemWithMeta[];
+      })) as ProblemSet[];
+      console.log(docs);
       setData(docs);
       await setDoc(doc(db, "problemSet", roomId!), {
         problems: docs.map((doc) => ({
           id: doc.id,
           title: doc.title,
+          statusA: false,
+          statusB: false,
         })),
       })
+    }
     };
 
     fetchData();
@@ -62,12 +99,9 @@ export default function Problemset() {
   }, [roomId, teamId]);
 
   useEffect(() => {
-    socket.on("solvedProblem", ({ problemId }) => {
-      setData(prev => 
-        prev?.map(p => 
-          p.id === problemId ? {...p, solved: true} : p
-        ) || []
-      );
+    socket.on("solvedProblem", ({ problemId, teamId }) => {
+      markTeamSolved(teamId, problemId, roomId!)
+      console.log(data);
     });
 
     return () => {
@@ -105,7 +139,7 @@ export default function Problemset() {
               <h3 className="text-2xl text-white">{problem.title}</h3>
             </div>
             <div className="flex items-center gap-6">
-              <StatusIcon solved={problem.solved} />
+              <StatusIcon solved={teamId === "A" ? problem.statusA : problem.statusB} />
               <button 
                 onClick={() => {navigate(`/room/${roomId}/problems/${problem.id}/team/${teamId}`)}}
                 className="font-bold text-cyan-300 border-2 border-cyan-400/50 rounded-lg px-5 py-2 

@@ -97,14 +97,14 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("navigateToProblemset", { roomId, room })
   });
   
-  socket.on("joinProblemRoom", ({roomId, problemId, username}) => {
-    socket.join(problemId);
+  socket.on("joinProblemRoom", ({roomId, teamId, problemId, username}) => {
+    socket.join(`${roomId}-team-${teamId}-problem-${problemId}`);
     console.log(`${username} joined ${problemId} in room ${roomId}`);
   });
 
-  socket.on("editorChange", ({ roomId, problemId, code, source }) => {
+  socket.on("editorChange", ({ roomId, teamId, problemId, code, source }) => {
     // Broadcast to everyone else in the same room/problem
-    socket.to(problemId).emit("editorUpdate", { code, source });
+    io.to(`${roomId}-team-${teamId}-problem-${problemId}`).emit("editorUpdate", { code, source });
   });
 
   socket.on("joinProblemset", ({ roomId, teamId }) => {
@@ -112,7 +112,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("markSolved", ({ roomId, teamId, problemId }) => {
-    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId });
+    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId, teamId });
   });
 
   socket.on("disconnectRoom", ({ username, roomId }) => {
