@@ -32,6 +32,7 @@ const io = new Server(server, {
 
 const rooms = {};
 const userToRoom = {};
+const activeTimers = new Map();
 
 io.on("connection", (socket) => {
 
@@ -92,10 +93,30 @@ io.on("connection", (socket) => {
 
   socket.on("startGame", ({ roomId }) => {
     const room = rooms[roomId]
-    if(!room) return;
+    if(!room || room.status === 'in-progress') return;
+
+    room.status = 'in-progress';
+    room.duration = 300; // 30 minutes in seconds
+    room.startTime = Date.now();
+    room.endTime = room.startTime + (room.duration * 1000);
+
+    const timerId = setTimeout(() => {
+        console.log(`Timer finished for room ${roomId}`);
+        io.to(roomId).emit("matchEnd", { reason: "time_up" });
+        activeTimers.delete(roomId); 
+    }, room.duration * 1000);
+
+    activeTimers.set(roomId, timerId);
 
     io.to(roomId).emit("navigateToProblemset", { roomId, room })
   });
+
+  socket.on("getMatchDetails", ({ roomId }) => {
+    const room = rooms[roomId];
+    if (room && room.endTime) {
+        socket.emit("matchDetails", { endTime: room.endTime });
+    }
+});
   
   socket.on("joinProblemRoom", ({roomId, teamId, problemId, username}) => {
     socket.join(`${roomId}-team-${teamId}-problem-${problemId}`);
@@ -151,6 +172,7 @@ io.on("connection", (socket) => {
     room.teamB = room.teamB.map((p) => (p === username ? null : p));
 
     delete userToRoom[username];
+    io.to(roomId).emit("roomUpdate", room);
   });
 
 });

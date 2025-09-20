@@ -9,6 +9,7 @@ import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
 import { OrbitProgress } from 'react-loading-indicators';
 import { markTeamSolved } from './Problemset';
+import { useMatchTimer } from '../hooks/useMatchTimer';
 
 
 // interface ProblemData {
@@ -97,6 +98,17 @@ const Problem: React.FC = () => {
     const testResultsRef = useRef<HTMLDivElement | null>(null);
 
     const navigate = useNavigate();
+
+    const { timeLeft, isMatchOver } = useMatchTimer(roomId);
+    const hasAutoSubmitted = useRef(false);
+
+    useEffect(() => {
+        if (isMatchOver && !hasAutoSubmitted.current) {
+            console.log("Match ended. Auto-submitting code...");
+            Run(); 
+            hasAutoSubmitted.current = true;
+        }
+    }, [isMatchOver]);
 
     const sendChange = useMemo(() =>
     debounce((newValue: string) => {
@@ -263,6 +275,10 @@ const Problem: React.FC = () => {
     async function Run() {
         setIsLoading(true);
         const sourceCode = editorRef.current?.getValue();
+        if(sourceCode === ""){ 
+          setIsLoading(false)
+          return
+        }
         const url = import.meta.env.VITE_JUDGE0_URL + '/submissions/batch?fields=*';
         const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
         let submissions: {}[] = [];
@@ -362,9 +378,17 @@ const Problem: React.FC = () => {
       {/* Header */}
       <header className="flex justify-between items-center p-4 border-b border-gray-700/50">
         <h2 className="text-2xl font-bold text-cyan-300">{ data?.title }</h2>
-        <button onClick={Run} className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-6 py-2 transition-all duration-300 hover:bg-transparent hover:text-green-300">
-              Submit
-        </button>
+        <div className=" text-xl font-mono bg-gray-800/50 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-cyan-400/20">
+                <span className="text-cyan-300">Time Left: {timeLeft}</span>
+            </div>
+        <button 
+                onClick={Run} 
+                className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-6 py-2 transition-all duration-300 hover:bg-transparent hover:text-green-300
+                disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isMatchOver}
+            >
+                Submit
+            </button>
         <button onClick={() => navigate(`/room/${roomId}/problemset/team/${teamId}`)} className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
             Back to Problemset

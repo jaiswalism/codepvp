@@ -3,6 +3,7 @@ import { getDocs, getDoc, collection, query, where, limit, setDoc, doc, updateDo
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { socket } from "../utils/socket";
+import { useMatchTimer } from '../hooks/useMatchTimer';
 
 interface ProblemSet {
   title: string,
@@ -56,6 +57,8 @@ export default function Problemset() {
 
     const navigate = useNavigate();
 
+    const { timeLeft, isMatchOver } = useMatchTimer(roomId);
+
     useEffect(() => {
     const fetchData = async () => {
 
@@ -92,11 +95,51 @@ export default function Problemset() {
     };
 
     fetchData();
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
       socket.emit("joinProblemset", { roomId, teamId })
   }, [roomId, teamId]);
+
+
+  // useEffect(() => {
+  //       // As soon as component loads, ask for match details
+  //       socket.emit("getMatchDetails", { roomId });
+
+  //       // Listen for the server's response with the endTime
+  //       socket.on("matchDetails", ({ endTime }: { endTime: number }) => {
+  //           // Once we have the endTime, start the visual countdown
+  //           const intervalId = setInterval(() => {
+  //               const remaining = Math.max(0, endTime - Date.now());
+
+  //               if (remaining === 0) {
+  //                   setTimeLeft("00:00");
+  //                   clearInterval(intervalId);
+  //                   return;
+  //               }
+  //               const minutes = String(Math.floor(remaining / 60000)).padStart(2, '0');
+  //               const seconds = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+  //               setTimeLeft(`${minutes}:${seconds}`);
+  //           }, 500);
+
+  //           // Cleanup interval on unmount
+  //           return () => clearInterval(intervalId);
+  //       });
+        
+  //       // Listen for the match ending from the server
+  //       socket.on("matchEnd", ({ reason }: { reason: string }) => {
+  //           if (reason === "time_up") {
+  //               alert("Time's up!");
+  //           }
+  //       });
+
+  //       // Cleanup socket listeners on unmount
+  //       return () => {
+  //           socket.off("matchDetails");
+  //           socket.off("matchEnd");
+  //       };
+  //   }, [roomId]);
+
 
   useEffect(() => {
     socket.on("solvedProblem", ({ problemId, teamId }) => {
@@ -122,7 +165,7 @@ export default function Problemset() {
         <h2 className="text-4xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Problem Set</h2>
         <div className="text-right">
           <p className="text-purple-300 text-lg">Time Remaining</p>
-          <p className="text-white text-3xl font-bold">29:45</p>
+          <p className="text-white text-3xl font-bold font-mono">{timeLeft}</p>
         </div>
       </div>
 
@@ -144,6 +187,7 @@ export default function Problemset() {
                 onClick={() => {navigate(`/room/${roomId}/problems/${problem.id}/team/${teamId}`)}}
                 className="font-bold text-cyan-300 border-2 border-cyan-400/50 rounded-lg px-5 py-2 
                 transition-all duration-300 hover:bg-cyan-300 hover:text-gray-900"
+                disabled={isMatchOver} 
               >
                 View
               </button>

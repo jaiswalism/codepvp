@@ -24,7 +24,11 @@
     "react-dom": "^19.1.1",
     "react-loading-indicators": "^1.0.1",
     "socket.io-client": "^4.8.1",
-    "tailwindcss": "^4.1.12"
+    "tailwindcss": "^4.1.12",
+    "y-monaco": "^0.1.6",
+    "y-webrtc": "^10.3.0",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
