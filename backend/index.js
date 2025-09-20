@@ -96,9 +96,13 @@ io.on("connection", (socket) => {
     if(!room || room.status === 'in-progress') return;
 
     room.status = 'in-progress';
-    room.duration = 300; // 30 minutes in seconds
+    room.duration = 1800; // 30 minutes in seconds
     room.startTime = Date.now();
     room.endTime = room.startTime + (room.duration * 1000);
+
+    // --- ADD TEAM-SPECIFIC FINISH TRACKING ---
+    room.teamAFinishedTime = null;
+    room.teamBFinishedTime = null;
 
     const timerId = setTimeout(() => {
         console.log(`Timer finished for room ${roomId}`);
@@ -135,6 +139,35 @@ io.on("connection", (socket) => {
   socket.on("markSolved", ({ roomId, teamId, problemId }) => {
     io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId, teamId });
   });
+
+socket.on("finishGame", ({ roomId, teamId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'in-progress') return;
+
+    const finishTime = Date.now();
+    if (teamId === 'A') {
+        room.teamAFinishedTime = finishTime;
+    } else {
+        room.teamBFinishedTime = finishTime;
+    }
+
+    console.log(`Team ${teamId} in room ${roomId} finished at ${finishTime}.`);
+
+    io.to(roomId).emit("teamFinishedUpdate", { 
+        teamId: teamId, 
+        finishTime: finishTime 
+    });
+
+    // Check if both teams have finished to end early
+    if (room.teamAFinishedTime && room.teamBFinishedTime) {
+        const timerId = activeTimers.get(roomId);
+        if (timerId) {
+            clearTimeout(timerId);
+            activeTimers.delete(roomId);
+        }
+        io.to(roomId).emit("matchEnd", { reason: "both_teams_finished" });
+    }
+});
 
   socket.on("disconnectRoom", ({ username, roomId }) => {
     // Cleanup
