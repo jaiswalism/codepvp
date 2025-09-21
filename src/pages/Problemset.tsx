@@ -1,8 +1,9 @@
 import { db } from "../../firebaseConfig";
 import { getDocs, getDoc, collection, query, where, limit, setDoc, doc, updateDoc } from "firebase/firestore";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { socket } from "../utils/socket";
+import { useMatchTimer } from '../hooks/useMatchTimer';
 
 interface ProblemSet {
   title: string,
@@ -49,111 +50,215 @@ const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
 };
 
 export default function Problemset() {
+  const [data, setData] = useState<ProblemSet[] | null>(null);
+  const [teamAFinished, setTeamAFinished] = useState(false);
+  const [teamBFinished, setTeamBFinished] = useState(false);
 
-    const [data, setData] = useState<ProblemSet[] | null>(null);
+  const { teamId, roomId } = useParams();
 
-    const { teamId, roomId } = useParams();
+  const navigate = useNavigate();
 
-    const navigate = useNavigate();
+  const { timeLeft, isMatchOver } = useMatchTimer(roomId);
 
-    useEffect(() => {
+  useEffect(() => {
     const fetchData = async () => {
+      const docRef = doc(db, "problemSet", roomId!);
+      const docSnap = await getDoc(docRef);
 
-      const docRef = doc(db, "problemSet", roomId!)
-      const docSnap = await getDoc(docRef)
-
-      if(docSnap.exists()) {
-        const docs = docSnap.data().problems as ProblemSet[]
-        setData(docs)
+      if (docSnap.exists()) {
+        const docs = docSnap.data().problems as ProblemSet[];
+        setData(docs);
       } else {
-
-      // First four easy q (Temporary)
-      const q = query(
-        collection(db, "ProblemsWithHTC"),
-        where("difficulty", "==", "Easy"),
-        limit(4)
-      );
-      const querySnapshot = await getDocs(q);
-      const docs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ProblemSet[];
-      console.log(docs);
-      setData(docs);
-      await setDoc(doc(db, "problemSet", roomId!), {
-        problems: docs.map((doc) => ({
+        // First four easy q (Temporary)
+        const q = query(
+          collection(db, "ProblemsWithHTC"),
+          where("difficulty", "==", "Easy"),
+          limit(4)
+        );
+        const querySnapshot = await getDocs(q);
+        const docs = querySnapshot.docs.map((doc) => ({
           id: doc.id,
-          title: doc.title,
-          statusA: false,
-          statusB: false,
-        })),
-      })
-    }
+          ...doc.data(),
+        })) as ProblemSet[];
+        console.log(docs);
+        setData(docs);
+        await setDoc(doc(db, "problemSet", roomId!), {
+          problems: docs.map((doc) => ({
+            id: doc.id,
+            title: doc.title,
+            statusA: false,
+            statusB: false,
+          })),
+        });
+      }
     };
 
     fetchData();
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
-      socket.emit("joinProblemset", { roomId, teamId })
+    socket.emit("joinProblemset", { roomId, teamId });
   }, [roomId, teamId]);
 
-  useEffect(() => {
-    socket.on("solvedProblem", ({ problemId, teamId }) => {
-      markTeamSolved(teamId, problemId, roomId!)
-      console.log(data);
-    });
+  // useEffect(() => {
+  //       // As soon as component loads, ask for match details
+  //       socket.emit("getMatchDetails", { roomId });
 
-    return () => {
-      socket.off("solvedProblem");
+  //       // Listen for the server's response with the endTime
+  //       socket.on("matchDetails", ({ endTime }: { endTime: number }) => {
+  //           // Once we have the endTime, start the visual countdown
+  //           const intervalId = setInterval(() => {
+  //               const remaining = Math.max(0, endTime - Date.now());
+
+  //               if (remaining === 0) {
+  //                   setTimeLeft("00:00");
+  //                   clearInterval(intervalId);
+  //                   return;
+  //               }
+  //               const minutes = String(Math.floor(remaining / 60000)).padStart(2, '0');
+  //               const seconds = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+  //               setTimeLeft(`${minutes}:${seconds}`);
+  //           }, 500);
+
+  //           // Cleanup interval on unmount
+  //           return () => clearInterval(intervalId);
+  //       });
+
+  //       // Listen for the match ending from the server
+  //       socket.on("matchEnd", ({ reason }: { reason: string }) => {
+  //           if (reason === "time_up") {
+  //               alert("Time's up!");
+  //           }
+  //       });
+
+  //       // Cleanup socket listeners on unmount
+  //       return () => {
+  //           socket.off("matchDetails");
+  //           socket.off("matchEnd");
+  //       };
+  //   }, [roomId]);
+
+useEffect(() => {
+    const handleSolvedProblem = ({ problemId, teamId }: { problemId: string, teamId: string }) => {
+      markTeamSolved(teamId, problemId, roomId!);
+    };
+    
+    const handleTeamFinished = ({ teamId }: { teamId: string }) => {
+      if (teamId === 'A') {
+        setTeamAFinished(true);
+      } else if (teamId === 'B') {
+        setTeamBFinished(true);
+      }
     };
 
-  }, []);
+    socket.on("solvedProblem", handleSolvedProblem);
+    socket.on("teamFinishedUpdate", handleTeamFinished);
+
+    return () => {
+      socket.off("solvedProblem", handleSolvedProblem);
+      socket.off("teamFinishedUpdate", handleTeamFinished);
+    };
+  }, [roomId, data]);
+
+  const allProblemsSolved = useMemo(() => {
+    if (!data || !teamId) return false;
+    return data.every((problem) =>
+      teamId === "A" ? problem.statusA : problem.statusB
+    );
+  }, [data, teamId]);
+
+  const handleFinishGame = () => {
+    if (allProblemsSolved) {
+      socket.emit("finishGame", { roomId, teamId });
+    }
+  };
+
+  const currentUserTeamFinished = teamId === 'A' ? teamAFinished : teamBFinished;
 
   return (
     <div className="flex justify-center items-center bg-gray-900 h-dvh w-dvw">
-    <div className="z-10 flex flex-col p-8 max-w-4xl w-full
+      <div
+        className="z-10 flex flex-col p-8 max-w-4xl w-full
       bg-black/30 backdrop-blur-md 
       border border-cyan-400/20 rounded-xl
-      shadow-2xl shadow-cyan-500/10">
-      
-      {/* Header */}
-      <div className="w-full flex justify-between items-center mb-8">
-        <h2 className="text-4xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Problem Set</h2>
-        <div className="text-right">
-          <p className="text-purple-300 text-lg">Time Remaining</p>
-          <p className="text-white text-3xl font-bold">29:45</p>
+      shadow-2xl shadow-cyan-500/10"
+      >
+        {/* Header */}
+        <div className="w-full flex justify-between items-center mb-8">
+          <h2
+            className="text-4xl font-bold text-cyan-300"
+            style={{ textShadow: `0 0 8px #0ff` }}
+          >
+            Problem Set
+          </h2>
+          <div className="text-right">
+            <p className="text-purple-300 text-lg">Time Remaining</p>
+            <p className="text-white text-3xl font-bold font-mono">
+              {timeLeft}
+            </p>
+          </div>
+        </div>
+
+        {/* Problem List */}
+        <div className="w-full flex flex-col gap-4">
+          {data?.map((problem, index) => (
+            <div
+              key={index}
+              className="flex justify-between items-center p-4 bg-gray-900/40 border border-gray-700/50 rounded-lg
+            hover:bg-gray-800/60 hover:border-cyan-400/50 transition-all duration-300"
+            >
+              <div className="flex items-center gap-4">
+                <span className="text-2xl text-gray-600 font-bold">
+                  0{index + 1}
+                </span>
+                <h3 className="text-2xl text-white">{problem.title}</h3>
+              </div>
+              <div className="flex items-center gap-6">
+                <StatusIcon
+                  solved={teamId === "A" ? problem.statusA : problem.statusB}
+                />
+                <button
+                  onClick={() => {
+                    navigate(
+                      `/room/${roomId}/problems/${problem.id}/team/${teamId}`
+                    );
+                  }}
+                  className="font-bold text-cyan-300 border-2 border-cyan-400/50 rounded-lg px-5 py-2 
+                transition-all duration-300 hover:bg-cyan-300 hover:text-gray-900"
+                  disabled={isMatchOver || currentUserTeamFinished}
+                >
+                  View
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 flex flex-col items-center justify-center text-center">
+          {allProblemsSolved && !currentUserTeamFinished && (
+            <button
+              onClick={handleFinishGame}
+              className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-8 py-3 text-xl
+                         transition-all duration-300 transform hover:scale-105
+                         hover:bg-transparent hover:text-green-300
+                         hover:shadow-[0_0_20px_rgba(74,222,128,0.5)]"
+            >
+              Finish Game
+            </button>
+          )}
+
+          {currentUserTeamFinished && (
+            <p className="text-2xl font-bold text-green-400">
+              You have finished! Waiting for the match to end...
+            </p>
+          )}
+
+          {((teamId === 'A' && teamBFinished) || (teamId === 'B' && teamAFinished)) && (
+            <p className="mt-4 text-purple-300">
+              The other team has also finished.
+            </p>
+          )}
         </div>
       </div>
-
-      {/* Problem List */}
-      <div className="w-full flex flex-col gap-4">
-        {data?.map((problem, index) => (
-          <div 
-            key={index} 
-            className="flex justify-between items-center p-4 bg-gray-900/40 border border-gray-700/50 rounded-lg
-            hover:bg-gray-800/60 hover:border-cyan-400/50 transition-all duration-300"
-          >
-            <div className="flex items-center gap-4">
-              <span className="text-2xl text-gray-600 font-bold">0{index + 1}</span>
-              <h3 className="text-2xl text-white">{problem.title}</h3>
-            </div>
-            <div className="flex items-center gap-6">
-              <StatusIcon solved={teamId === "A" ? problem.statusA : problem.statusB} />
-              <button 
-                onClick={() => {navigate(`/room/${roomId}/problems/${problem.id}/team/${teamId}`)}}
-                className="font-bold text-cyan-300 border-2 border-cyan-400/50 rounded-lg px-5 py-2 
-                transition-all duration-300 hover:bg-cyan-300 hover:text-gray-900"
-              >
-                View
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-    </div>
     </div>
   );
-
 }

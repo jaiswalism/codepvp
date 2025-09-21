@@ -32,6 +32,7 @@ const io = new Server(server, {
 
 const rooms = {};
 const userToRoom = {};
+const activeTimers = new Map();
 
 io.on("connection", (socket) => {
 
@@ -92,10 +93,34 @@ io.on("connection", (socket) => {
 
   socket.on("startGame", ({ roomId }) => {
     const room = rooms[roomId]
-    if(!room) return;
+    if(!room || room.status === 'in-progress') return;
+
+    room.status = 'in-progress';
+    room.duration = 1800; // 30 minutes in seconds
+    room.startTime = Date.now();
+    room.endTime = room.startTime + (room.duration * 1000);
+
+    // --- ADD TEAM-SPECIFIC FINISH TRACKING ---
+    room.teamAFinishedTime = null;
+    room.teamBFinishedTime = null;
+
+    const timerId = setTimeout(() => {
+        console.log(`Timer finished for room ${roomId}`);
+        io.to(roomId).emit("matchEnd", { reason: "time_up" });
+        activeTimers.delete(roomId); 
+    }, room.duration * 1000);
+
+    activeTimers.set(roomId, timerId);
 
     io.to(roomId).emit("navigateToProblemset", { roomId, room })
   });
+
+  socket.on("getMatchDetails", ({ roomId }) => {
+    const room = rooms[roomId];
+    if (room && room.endTime) {
+        socket.emit("matchDetails", { endTime: room.endTime });
+    }
+});
   
   socket.on("joinProblemRoom", ({roomId, teamId, problemId, username}) => {
     socket.join(`${roomId}-team-${teamId}-problem-${problemId}`);
@@ -114,6 +139,35 @@ io.on("connection", (socket) => {
   socket.on("markSolved", ({ roomId, teamId, problemId }) => {
     io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId, teamId });
   });
+
+socket.on("finishGame", ({ roomId, teamId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'in-progress') return;
+
+    const finishTime = Date.now();
+    if (teamId === 'A') {
+        room.teamAFinishedTime = finishTime;
+    } else {
+        room.teamBFinishedTime = finishTime;
+    }
+
+    console.log(`Team ${teamId} in room ${roomId} finished at ${finishTime}.`);
+
+    io.to(roomId).emit("teamFinishedUpdate", { 
+        teamId: teamId, 
+        finishTime: finishTime 
+    });
+
+    // Check if both teams have finished to end early
+    if (room.teamAFinishedTime && room.teamBFinishedTime) {
+        const timerId = activeTimers.get(roomId);
+        if (timerId) {
+            clearTimeout(timerId);
+            activeTimers.delete(roomId);
+        }
+        io.to(roomId).emit("matchEnd", { reason: "both_teams_finished" });
+    }
+});
 
   socket.on("disconnectRoom", ({ username, roomId }) => {
     // Cleanup
@@ -151,6 +205,7 @@ io.on("connection", (socket) => {
     room.teamB = room.teamB.map((p) => (p === username ? null : p));
 
     delete userToRoom[username];
+    io.to(roomId).emit("roomUpdate", room);
   });
 
 });
