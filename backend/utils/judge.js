@@ -1,0 +1,184 @@
+import admin from 'firebase-admin';
+
+import serviceAccount from '../serviceAccountKey.json' with { type: 'json' };
+
+import 'dotenv/config';
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+const languageIdMap = {
+  python: 71,
+  cpp: 12,
+  java: 25,
+  javascript: 26,
+  typescript: 45,
+  go: 22,
+  rust: 41
+}
+
+const db = admin.firestore();
+const problemsCollection = db.collection('ProblemsWithHTC');
+
+export async function getVerdict(sourceCode, problemId, languageId) {
+    const docRef = problemsCollection.doc(problemId);
+    const doc = await docRef.get();
+
+    const problem = doc.data();
+    const samples = problem.samples;
+    const hiddenTestCases = problem.hiddenTestCases;
+
+    const url = process.env.JUDGE + '/submissions/batch?fields=*';
+
+    let submissions = [];
+    let result = [];
+
+    samples.map((tc) => {
+        submissions.push(
+            {
+                source_code: sourceCode,
+                language_id: languageIdMap[languageId],
+                stdin: tc.input,
+                expected_output: tc.output,
+            }
+        );
+        result.push(
+            {
+                input: tc.input,
+                expected: tc.output,
+                output: "",
+                verdict: "",
+                hidden: false,
+                error: false,
+                errorMessage: ""
+            }
+        )
+    })
+
+    hiddenTestCases.map((tc) => {
+        submissions.push(
+        {
+            source_code: sourceCode,
+            language_id: languageIdMap[languageId],
+            stdin: tc.input,
+            expected_output: tc.output,
+        }
+        );
+        result.push(
+            {
+            input: "Hidden",
+            expected: "Hidden",
+            output: "",
+            verdict: "",
+            hidden: true,
+            error: false,
+            errorMessage: ""
+            }
+        );
+    })
+
+    const options = {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            submissions: submissions
+        }),
+    };
+
+    try {
+        const response = await fetch(url, options);
+        if(!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        const tokens = data.map((d) => d.token);
+        return checkStatus(tokens, result);
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function checkStatus(tokens, result) {
+    const tokenQuery = tokens.join(",");
+    const baseUrl = process.env.JUDGE + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+    const options = {
+    method: 'GET',
+        headers: {
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        },
+    };
+
+    try {
+        let allDone = false;
+        let results = [];
+
+        while(!allDone) {
+            const url = `${baseUrl}&_=${Date.now()}`;
+            let response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            let data = await response.json();
+            results = data.submissions || data;
+
+            results = results.filter((res) => res !== null);
+
+            allDone =
+                results.length === tokens.length &&
+                results.every(
+                    (res) => res.status?.id !== 1 && res.status?.id !== 2
+                );
+
+            if (!allDone) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            let allPassed = true;
+            let countPassed = 0;
+
+            results.forEach((res, idx) => {
+                if (!res || !res.status) {
+                    allPassed = false;
+                    return;
+                }
+
+                const stdout = res.stdout ? atob(res.stdout) : null;
+                const stderr = res.stderr ? atob(res.stderr) : null;
+
+                const verdict = res.status?.description || "Unknown";
+                const passed = res.status?.id === 3; // 3 = Accepted
+
+                result[idx] = {
+                    ...result[idx],
+                    output: stdout ?? "",
+                    error: !!stderr,
+                    errorMessage: stderr ?? "",
+                    verdict: verdict,
+                };
+
+                if (passed) {
+                    countPassed += 1
+                } else {
+                    allPassed = false;
+                }
+
+            });
+
+            //Mark Points
+
+
+        }
+
+    } catch (err) {
+        console.log(err);
+    }
+    
+    return result
+
+}
