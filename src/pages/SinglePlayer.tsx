@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useUser } from '../hooks/useUser';
 import { db } from '../../firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
+import { DashboardNav } from './components/dashboard/dashboard-nav';
+
 interface Problem {
     id: string;
     title: string;
@@ -67,20 +69,20 @@ const SinglePlayer: React.FC = () => {
     };
 
     return (
-        <div className="z-10 flex flex-col items-center p-8 max-w-dvw h-dvh w-full overflow-y-auto
-          bg-gray-900 backdrop-blur-md 
-          border border-cyan-400/20
-          shadow-2xl shadow-cyan-500/10">
-            {/* <AnimatedBackground /> */}
+        <div className="min-h-screen bg-gray-950 text-white">
+            <DashboardNav />
             
-            {/* Header section with title and back button */}
-            <div className="w-full flex justify-between items-center mb-8">
-                <h2 className="text-5xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Practice Problems</h2>
-                <button onClick={handleClick} className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                    Back to Menu
-                </button>
-            </div>
+            {/* Main Content */}
+            <div className="relative z-10 p-6">
+                <div className="max-w-7xl mx-auto">
+                    {/* Header section with title and back button */}
+                    <div className="w-full flex justify-between items-center mb-8">
+                        <h2 className="text-5xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Practice Problems</h2>
+                        <button onClick={handleClick} className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                            Back to Menu
+                        </button>
+                    </div>
 
             {loading ? (
                 <div className="flex items-center justify-center w-full h-64">
@@ -90,7 +92,7 @@ const SinglePlayer: React.FC = () => {
                 /* Grid layout for the problem cards */
                 <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {problems.map((problem) => (
-                        <div key={problem.id} className="flex flex-col justify-between p-5 rounded-lg bg-gray-900/50 border border-gray-700/50 hover:border-cyan-400/70 hover:-translate-y-1 transition-all duration-300">
+                        <div key={problem.id} className="flex flex-col justify-between p-5 rounded-lg bg-gray-900/50 border border-gray-700/50 hover:border-cyan-400/70 hover:-translate-y-1 transition-all duration-300 shadow-lg">
                             <div>
                                 <div className="flex justify-between items-start mb-3">
                                     <h3 className="text-xl text-white font-bold line-clamp-2">{problem.title}</h3>
@@ -133,6 +135,8 @@ const SinglePlayer: React.FC = () => {
                     <p className="text-xl">No problems found</p>
                 </div>
             )}
+                </div>
+            </div>
         </div>
     );
 };

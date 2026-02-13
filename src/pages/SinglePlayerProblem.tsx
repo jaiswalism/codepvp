@@ -6,7 +6,7 @@ import { db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { useUser } from '../hooks/useUser';
 import { OrbitProgress } from 'react-loading-indicators';
-import { updateUserProgress } from '../utils/updateUserStats';
+import { incrementQuestionsSolved } from '../utils/updateUserStats';
 
 // Problem Data schema
 export interface ProblemData {
@@ -99,104 +99,8 @@ const SinglePlayerProblem: React.FC = () => {
     setCode(newValue || "");
   }
 
-  // Calculate points based on difficulty
-  const getPoints = (difficulty: string): number => {
-    switch (difficulty) {
-      case 'Easy': return 10;
-      case 'Medium': return 20;
-      case 'Hard': return 30;
-      default: return 10;
-    }
-  };
-
-  // Check submission status from Judge0
-  const checkStatus = async (tokens: string[], tempRes: TestCases[]) => {
-    const tokenQuery = tokens.join(",");
-    const baseUrl = import.meta.env.VITE_JUDGE0_URL + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
-    const options = {
-      method: 'GET',
-      headers: {
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
-      },
-    };
-
-    try {
-      let allDone = false;
-      let results: any[] = [];
-
-      // Poll Judge0 until all submissions are processed
-      while (!allDone) {
-        const url = `${baseUrl}&_=${Date.now()}`;
-        let response = await fetch(url, options);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        let data = await response.json();
-        results = data.submissions || data;
-        results = results.filter((res: any) => res !== null);
-
-        allDone = results.length === tokens.length &&
-          results.every((res: any) => res.status?.id !== 1 && res.status?.id !== 2);
-
-        if (!allDone) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      }
-
-      // Process results
-      let allPassed = true;
-      results.forEach((res: any, idx: number) => {
-        if (!res || !res.status) {
-          console.log(`Testcase ${idx + 1}: ❌ Invalid response`);
-          allPassed = false;
-          return;
-        }
-
-        const stdout = res.stdout ? atob(res.stdout) : null;
-        const stderr = res.stderr ? atob(res.stderr) : null;
-        const verdict = res.status?.description || "Unknown";
-        const passed = res.status?.id === 3; // 3 = Accepted
-
-        tempRes[idx] = {
-          ...tempRes[idx],
-          output: stdout ?? "",
-          error: !!stderr,
-          errorMessage: stderr ?? "",
-          verdict: verdict,
-        };
-
-        if (!passed) {
-          allPassed = false;
-        }
-      });
-
-      // If all passed, update user stats
-      if (allPassed && user?.uid && data) {
-        const points = getPoints(data.difficulty);
-        try {
-          await updateUserProgress(user.uid, points, 1);
-          console.log(`✅ Problem solved! +${points} rating, +1 question`);
-        } catch (error) {
-          console.error("Error updating user stats:", error);
-        }
-      }
-
-      setTestResults([...tempRes]);
-      setTimeout(() => {
-        testResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    } catch (err: any) {
-      console.error("Error checking status:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Run code with Judge0
-  const handleRun = async () => {
+  // Submit code via backend API
+  const handleSubmit = async () => {
     setIsLoading(true);
     const sourceCode = editorRef.current?.getValue();
     
@@ -205,70 +109,43 @@ const SinglePlayerProblem: React.FC = () => {
       return;
     }
 
-    const url = import.meta.env.VITE_JUDGE0_URL + '/submissions/batch?fields=*';
     const normalizedCode = sourceCode.replace(/\r\n/g, "\n");
-    let submissions: any[] = [];
-    let tempRes: TestCases[] = [];
-
-    // Prepare sample test cases
-    data?.samples.forEach((tc) => {
-      submissions.push({
-        source_code: normalizedCode,
-        language_id: languageIdMap[language],
-        stdin: tc.input,
-        expected_output: tc.output,
-      });
-      tempRes.push({
-        input: tc.input,
-        expected: tc.output,
-        output: "",
-        verdict: "",
-        hidden: false,
-        error: false,
-        errorMessage: ""
-      });
-    });
-
-    // Prepare hidden test cases
-    data?.hiddenTestCases.forEach((tc) => {
-      submissions.push({
-        source_code: normalizedCode,
-        language_id: languageIdMap[language],
-        stdin: tc.input,
-        expected_output: tc.output,
-      });
-      tempRes.push({
-        input: tc.input,
-        expected: tc.output,
-        output: "",
-        verdict: "",
-        hidden: true,
-        error: false,
-        errorMessage: ""
-      });
-    });
-
-    setTestResults(tempRes);
-
-    const options = {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        submissions: submissions
-      }),
-    };
 
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/submit`, {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sourceCode: normalizedCode,
+          problemId: problemId,
+          language: language,
+        })
+      });
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error('Response is not ok');
       }
+
       const responseData = await response.json();
-      const tokens = responseData.map((d: any) => d.token);
-      await checkStatus(tokens, tempRes);
+      setTestResults([...responseData.result]);
+
+      // If all test cases passed, increment questions solved count
+      if (responseData.ac && user?.uid) {
+        try {
+          await incrementQuestionsSolved(user.uid, 1);
+          console.log('✅ Problem solved! Questions count incremented.');
+        } catch (error) {
+          console.error("Error incrementing questions solved:", error);
+        }
+      }
+
+      setTimeout(() => {
+        testResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+
+      setIsLoading(false);
     } catch (err: any) {
       console.error("Error submitting code:", err);
       setIsLoading(false);
@@ -303,7 +180,7 @@ const SinglePlayerProblem: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={handleRun}
+            onClick={handleSubmit}
             className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-6 py-2 transition-all duration-300 hover:bg-transparent hover:text-green-300"
             disabled={isLoading}
           >
