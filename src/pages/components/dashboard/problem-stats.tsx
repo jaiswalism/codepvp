@@ -1,7 +1,10 @@
+import { useUser } from "../../../hooks/useUser"
+
 export function ProblemStats() {
-  const totalSolved = 70
+  const { userData } = useUser()
+  const totalSolved = userData?.questionsSolved || 0
   const totalProblems = 3691
-  const percentage = Math.round((totalSolved / totalProblems) * 100)
+  const percentage = totalProblems > 0 ? Math.round((totalSolved / totalProblems) * 100) : 0
 
   // Calculate stroke-dasharray for the circular progress
   const radius = 80
