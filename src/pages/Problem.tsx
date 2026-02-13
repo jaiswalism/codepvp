@@ -220,6 +220,46 @@ const Problem: React.FC = () => {
         editorRef.current = editorInstance;
     }
 
+    // Handles Code Submission
+    const handleSubmit = async () => {
+      setIsLoading(true);
+      const sourceCode = editorRef.current?.getValue();
+      if(sourceCode === ""){ 
+        setIsLoading(false)
+        return
+      }
+      const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
+
+      try {
+
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/submit`, {
+          method: 'POST',
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sourceCode: normalizedCode,
+            problemId: problemId,
+            language: language,
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error('Response is not ok')
+        }
+
+        const data = await response.json();
+        setTestResults([...data.result])
+
+        // Mark Points here
+
+        setIsLoading(false);
+
+      } catch (error) {
+        console.error(error)
+      }
+    }
+
     /*  
       Called after problem is submitted to Judge0 and tokens are recieved
       Checks status of all the problems submitted
@@ -452,7 +492,7 @@ const Problem: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={Run}
+            onClick={handleSubmit}
             className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-4 py-1.5 transition-all duration-300 hover:bg-transparent hover:text-green-300
             disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={isMatchOver}
