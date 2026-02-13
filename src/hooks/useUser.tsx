@@ -4,35 +4,73 @@
 
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { createContext, useContext, useState, useEffect } from "react";
-import { auth } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+
+// User data from Firestore users collection
+export interface UserData {
+  uid: string;
+  email: string | null;
+  username: string;
+  languages: string[];
+  skillLevel: string;
+  bio: string;
+  avatar: string;
+  completedOnboarding: boolean;
+  rating?: number; // User rating (Beginner: 0-199, Medium: 200-399, Advanced: 400-599, Expert: 600+)
+  questionsSolved?: number; // Total number of questions solved
+}
 
 // Contains user and loading for auth
 type UserContextType = {
   user: User | null;
+  userData: UserData | null;
   loading: boolean;
 };
 
 const UserContext = createContext<UserContextType>({
   user: null,
+  userData: null,
   loading: true,
 });
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Getting auth
+  // Getting auth and user data from Firestore
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      setLoading(false); // Once auth is succesfull set loading to false
+      
+      if (firebaseUser) {
+        // Fetch user data from Firestore users collection
+        try {
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (userDocSnap.exists()) {
+            setUserData(userDocSnap.data() as UserData);
+          } else {
+            setUserData(null);
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setUserData(null);
+        }
+      } else {
+        setUserData(null);
+      }
+      
+      setLoading(false); // Once auth is successful set loading to false
     });
 
     return () => unsubscribe();
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, loading }}>
+    <UserContext.Provider value={{ user, userData, loading }}>
       {children}
     </UserContext.Provider>
   );
