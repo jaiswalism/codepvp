@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_RAPID_API_KEY: ${VITE_RAPID_API_KEY}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL}
+        VITE_JUDGE0_URL: ${VITE_JUDGE0_URL}
+    container_name: codepvp_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+  
+  backend:
+    build :
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codepvp_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./backend:/app

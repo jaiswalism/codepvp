@@ -3,33 +3,34 @@ import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc} from 'firebase/firestore';
 import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
 import { OrbitProgress } from 'react-loading-indicators';
 import { markTeamSolved } from './Problemset';
 import { useMatchTimer } from '../hooks/useMatchTimer';
-import type { gameRes } from './GameFinishPage';
 import ChatBox from './components/chat-box';
 
 // Problem Data schema stored in firebase
 export interface ProblemData {
-  constraints: string;
-  difficulty: string;
-  hiddenTestCases: {
-    input: string;
-    output: string;
-  }[];
-  inputFormat: string;
-  outputFormat: string;
-  samples: {
-    input: string;
-    output: string;
-  }[];
-  statement: string;
-  tags: string[];
-  title: string;
+  constraints: string;
+  difficulty: string;
+  hiddenTestCases: {
+    input: string;
+    output: string;
+  }[];
+  inputFormat: string;
+  outputFormat: string;
+  samples: {
+    input: string;
+    output: string;
+  }[];
+  statement: string;
+  tags: string[];
+  title: string;
+  statusA: number;
+  statusB: number;
 }
 
 // Testcase interface for validating test cases
@@ -87,51 +88,54 @@ const Problem: React.FC = () => {
       setLanguage(event.target.value)
     }
 
-    // Function to mark points for a solved question for a team
-    const markPoints = async (roomId: string, teamId: string, problemId: string, passed: number) => {
-      const docRef = doc(db, "RoomSet", roomId!);
-      const docSnap = await getDoc(docRef);
-      const docData = docSnap.data();
-      
-      const teamKey = teamId == "A" ? "teamA" : "teamB"; // Get Team
-      const problemArray = docData?.allProblems || [];
-      const problem = problemArray.find((p: any) => p.id === problemId); // Get Problem solved
+    // Function to mark points for a solved question for a team
+    // const markPoints = async (roomId: string, teamId: string, problemId: string, passed: number) => {
+    //   const docRef = doc(db, "RoomSet", roomId!);
+    //   const docSnap = await getDoc(docRef);
+    //   const docData = docSnap.data();
+      
+    //   const teamKey = teamId == "A" ? "teamA" : "teamB"; // Get Team
+    //   const statusKey = teamId == "A" ? "statusA" : "statusB";
+    //   const problemArray = docData?.allProblems || [];
+    //   const problem = problemArray.find((p: any) => p.id === problemId); // Get Problem solved
 
-      // If problem already marked as solved then dont consider it
-      if (docData?.[teamKey].solvedProblems.includes(problem.title)) return ;
+    //   // If problem already marked as solved then dont consider it
+    //   if (docData?.[teamKey].solvedProblems.includes(problem.title)) return ;
 
-      // Need a better way to award points because this is exploitable
-      const currentScore = docData?.[teamKey].score;
-      const pointsAwarded = 10 * passed;
+    //   const pointsAwarded = 10 * passed;
+    //   if (problem[statusKey] >= pointsAwarded) return;
 
-      await updateDoc(docRef, {
-        [`${teamKey}.score`]: currentScore + pointsAwarded,
-      });
+    //   // Need a better way to award points because this is exploitable
+    //   const currentScore = docData?.[teamKey].score;
 
-      const players: {
-          pid: string;
-          points: number;
-          problemSolved: number;
-        }[] = docSnap.data()?.[teamKey].players || [];
+    //   await updateDoc(docRef, {
+    //     [`${teamKey}.score`]: currentScore + (pointsAwarded - problem[statusKey]),
+    //   });
 
-      const playerIndex = players.findIndex(
-        (p) => p.pid === currentUserName
-      );
+    //   const players: {
+    //       pid: string;
+    //       points: number;
+    //       problemSolved: number;
+    //     }[] = docSnap.data()?.[teamKey].players || [];
 
-      if (playerIndex !== -1) {
-        const updatedPlayers = [...docData?.[teamKey].players];
-        updatedPlayers[playerIndex] = {
-          ...updatedPlayers[playerIndex],
-          points: updatedPlayers[playerIndex].points + pointsAwarded,
-          problemsSolved: updatedPlayers[playerIndex].problemsSolved + passed, // or just +1 if 1 problem solved
-        };
+    //   const playerIndex = players.findIndex(
+    //     (p) => p.pid === currentUserName
+    //   );
 
-        await updateDoc(docRef, { // Update the players array
-          [`${teamKey}.players`]: updatedPlayers,
-        });
-      }
+    //   if (playerIndex !== -1) {
+    //     const updatedPlayers = [...docData?.[teamKey].players];
+    //     updatedPlayers[playerIndex] = {
+    //       ...updatedPlayers[playerIndex],
+    //       points: updatedPlayers[playerIndex].points + (pointsAwarded - problem[statusKey]),
+    //       problemsSolved: updatedPlayers[playerIndex].problemsSolved,
+    //     };
 
-    }
+    //     await updateDoc(docRef, { // Update the players array
+    //       [`${teamKey}.players`]: updatedPlayers,
+    //     });
+    //   }
+
+    // }
 
     useEffect(() => {
         if (isMatchOver && !hasAutoSubmitted.current) {
@@ -236,9 +240,49 @@ const Problem: React.FC = () => {
 
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
-    function handleEditorDidMount(editorInstance: editor.IStandaloneCodeEditor) {
-        editorRef.current = editorInstance;
-    }
+    function handleEditorDidMount(editorInstance: editor.IStandaloneCodeEditor) {
+        editorRef.current = editorInstance;
+    }
+
+    // Handles Code Submission
+    const handleSubmit = async () => {
+      setIsLoading(true);
+      const sourceCode = editorRef.current?.getValue();
+      if(sourceCode === ""){ 
+        setIsLoading(false)
+        return
+      }
+      const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
+
+      try {
+
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/submit`, {
+          method: 'POST',
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sourceCode: normalizedCode,
+            problemId: problemId,
+            language: language,
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error('Response is not ok')
+        }
+
+        const data = await response.json();
+        setTestResults([...data.result])
+
+        // Mark Points here
+
+        setIsLoading(false);
+
+      } catch (error) {
+        console.error(error)
+      }
+    }
 
     /*  
       Called after problem is submitted to Judge0 and tokens are recieved
@@ -316,24 +360,23 @@ const Problem: React.FC = () => {
             allPassed = false;
           }
 
-        });
-        
-        markPoints(roomId!, teamId!, problemId!, countPassed)
+        });
+        
+        // markPoints(roomId!, teamId!, problemId!, countPassed)
 
-        if (allPassed && socket && roomId && problemId && teamId) {
-          socket.emit("markSolved", { roomId, teamId, problemId });
-          if(passData) {
-            markTeamSolved(teamId, problemId, roomId, passData)
-          }
-        }
-      } catch (err: any) {
-        console.error(err);
-      }
-      setIsLoading(false);
-      setTestResults([...tempRes]);
-      // Removed auto-scroll to allow users to scroll freely between editor and results
-      // User can manually scroll to view test results if needed
-    };
+        if (allPassed && socket && roomId && problemId && teamId) {
+          socket.emit("markSolved", { roomId, teamId, problemId, username: currentUserName });
+          markTeamSolved(teamId, problemId, roomId, currentUserName)
+        }
+      } catch (err: any) {
+        console.error(err);
+      }
+      setIsLoading(false);
+      setTestResults([...tempRes]);
+      setTimeout(() => {
+        testResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    };
 
     /*
       Called when user clicks Submit
@@ -425,72 +468,73 @@ const Problem: React.FC = () => {
         }
     }
 
-    useEffect(() => {
+    // useEffect(() => {
 
-      if (!user) return;
-      if (!roomId) return;
+    //   if (!user) return;
+    //   if (!roomId) return;
 
-      const fetchData = async () => {
-        const docRef = doc(db, "RoomSet", roomId!);
-        const docSnap = await getDoc(docRef);
+    //   const fetchData = async () => {
+    //     const docRef = doc(db, "RoomSet", roomId!);
+    //     const docSnap = await getDoc(docRef);
 
-        // Redirects to 404 if room not created earlier
-        if(!docSnap.exists()) navigate("/404");
+    //     // Redirects to 404 if room not created earlier
+    //     if(!docSnap.exists()) navigate("/404");
 
-        const teamKey = teamId == "A" ? "teamA" : "teamB";
+    //     const teamKey = teamId == "A" ? "teamA" : "teamB";
 
-        const players: {
-          pid: string;
-          points: number;
-          problemSolved: number;
-        }[] = docSnap.data()?.[teamKey].players || [];
+    //     const players: {
+    //       pid: string;
+    //       points: number;
+    //       problemSolved: number;
+    //     }[] = docSnap.data()?.[teamKey].players || [];
 
-        let pIdx = -1
+    //     let pIdx = -1
 
-        pIdx = players.findIndex(
-          (p) => p.pid === currentUserName
-        );
+    //     pIdx = players.findIndex(
+    //       (p) => p.pid === currentUserName
+    //     );
 
-        if (pIdx == -1) navigate("/404"); // Player not found in the team
-  
-        setPassData(docSnap.data() as gameRes)
-        
-        }
-  
-      fetchData();
-    }, [roomId]);
+    //     if (pIdx == -1) navigate("/404"); // Player not found in the team
+  
+    //     setPassData(docSnap.data() as gameRes)
+    //     console.log("fetched")
+        
+    //     }
+  
+    //   fetchData();
+    // },[passData]);
 
   const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
 
-  return (
-    <div className="h-screen flex flex-col bg-black overflow-hidden">
-      {/* Header */}
-      <header className="shrink-0 flex justify-between items-center px-4 py-2 border-b border-gray-700/50 bg-gray-900/50">
-        <h2 className="text-xl font-bold text-cyan-300">{data?.title}</h2>
-        <div className="text-xl font-mono bg-gray-800/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-cyan-400/20">
-          <span className="text-cyan-300">Time Left: {timeLeft}</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={Run}
-            className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-4 py-1.5 transition-all duration-300 hover:bg-transparent hover:text-green-300
-            disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isMatchOver}
-          >
-            Submit
-          </button>
-          <button 
-            onClick={() => navigate(`/room/${roomId}/problemset/team/${teamId}`)} 
-            className="text-purple-300 hover:text-white transition-colors duration-300 flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            Back to problemset
-          </button>
-        </div>
-      </header>
+  return (
+    <div className="h-screen flex flex-col bg-black overflow-hidden">
+      {/* Header */}
+      <header className="shrink-0 flex justify-between items-center px-4 py-2 border-b border-gray-700/50 bg-gray-900/50">
+        <h2 className="text-xl font-bold text-cyan-300">{data?.title}</h2>
+        <div className="text-xl font-mono bg-gray-800/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-cyan-400/20">
+          <span className="text-cyan-300">Time Left: {timeLeft}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleSubmit}
+            className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-4 py-1.5 transition-all duration-300 hover:bg-transparent hover:text-green-300
+            disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isMatchOver}
+          >
+            Submit
+          </button>
+          <button 
+            onClick={() => navigate(`/room/${roomId}/problemset/team/${teamId}`)} 
+            className="text-purple-300 hover:text-white transition-colors duration-300 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to problemset
+          </button>
+        </div>
+      </header>
 
       {/* Main Content */}
       <div className="flex flex-1 min-h-0">

@@ -9,12 +9,13 @@ import { useUser } from "../hooks/useUser";
 import ChatBox from "./components/chat-box";
 
 // Marks the question solved for the whole team
-export const markTeamSolved = async (teamId: string, problemId: string, roomId: string, data: gameRes) => {
+export const markTeamSolved = async (teamId: string, problemId: string, roomId: string, currentUserName: string) => {
 
   const docRef = doc(db, "RoomSet", roomId!);
   const docSnap = await getDoc(docRef);
+  const data = docSnap.data()
 
-  const problemArray = docSnap.data()?.allProblems || [];
+  const problemArray = data?.allProblems || [];
 
   const problem = problemArray.find((p: any) => p.id === problemId);
   const teamKey = teamId === "A" ? "teamA" : "teamB";
@@ -22,13 +23,49 @@ export const markTeamSolved = async (teamId: string, problemId: string, roomId: 
   const solvedProblems = data?.[teamKey]?.solvedProblems || [];
 
   // If not already solved then add it to solved list
-  if (!solvedProblems.includes(problem.title)) {
-    solvedProblems.push(problem.title);
+  if (solvedProblems.includes(problem.title)) return;
+  else solvedProblems.push(problem.title);
+
+  const currScore = data?.[teamKey].score;
+  const difficulty: string = problem.difficulty;
+
+  let points = 0;
+
+  if (difficulty === 'Easy') {
+    points = 10;
+  } else if (difficulty === 'Medium') {
+    points = 20;
+  } else {
+    points = 30
   }
 
   await updateDoc(docRef, {
     [`${teamKey}.solvedProblems`]: solvedProblems,
+    [`${teamKey}.score`]: currScore + points
   });
+
+    const players: {
+      pid: string;
+      points: number;
+      problemSolved: number;
+    }[] = docSnap.data()?.[teamKey].players || [];
+
+    const playerIndex = players.findIndex(
+      (p) => p.pid === currentUserName
+    );
+
+    if (playerIndex !== -1) {
+      const updatedPlayers = [...data?.[teamKey].players];
+      updatedPlayers[playerIndex] = {
+        ...updatedPlayers[playerIndex],
+        points: updatedPlayers[playerIndex].points + points,
+        problemsSolved: updatedPlayers[playerIndex].problemsSolved + 1,
+      };
+
+      await updateDoc(docRef, { // Update the players array
+        [`${teamKey}.players`]: updatedPlayers,
+      });
+    }
 }
 
 const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
@@ -112,8 +149,8 @@ export default function Problemset() {
   }, [roomId, teamId]);
 
   useEffect(() => {
-    const handleSolvedProblem = ({  problemId, teamId }: { problemId: string, teamId: string }) => {
-      markTeamSolved(teamId, problemId, roomId!, data!);
+    const handleSolvedProblem = ({  problemId, teamId, username }: { problemId: string, teamId: string, username: string }) => {
+      markTeamSolved(teamId, problemId, roomId!, username);
     };
     
     const handleTeamFinished = ({ teamId }: { teamId: string }) => {

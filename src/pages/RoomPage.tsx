@@ -149,6 +149,8 @@ const RoomPage: React.FC = () => {
     const querySnapshot = await getDocs(q);
     const allProblems = querySnapshot.docs.map((doc) => ({
       id: doc.id,
+      statusA: 0,
+      statusB: 0,
       ...doc.data(),
     }));
 

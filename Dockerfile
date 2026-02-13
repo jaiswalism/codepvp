@@ -1,0 +1,27 @@
+FROM node:18-alpine AS build
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+ARG VITE_RAPID_API_KEY
+ARG VITE_BACKEND_URL
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_JUDGE0_URL
+
+ENV VITE_RAPID_API_KEY=$VITE_RAPID_API_KEY
+ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
+ENV VITE_JUDGE0_URL=$VITE_JUDGE0_URL
+
+COPY . .
+RUN npm run build
+
+FROM nginx:stable-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+

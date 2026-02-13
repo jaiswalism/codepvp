@@ -7,8 +7,8 @@ export function editorHandlers(io, socket) {
     io.to(`${roomId}-team-${teamId}-problem-${problemId}`).emit("editorUpdate", { code, source });
   });
 
-  socket.on("markSolved", ({ roomId, teamId, problemId }) => {
-    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId, teamId });
+  socket.on("markSolved", ({ roomId, teamId, problemId, username }) => {
+    io.to(`${roomId}-team-${teamId}`).emit("solvedProblem", { problemId, teamId, username });
   });
 
   socket.on("joinProblemset", ({ roomId, teamId }) => {

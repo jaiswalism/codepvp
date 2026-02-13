@@ -1,11 +1,15 @@
-import React, { useState } from 'react'
-
+import React, { useEffect, useState } from 'react'
+import { socket } from '../../utils/socket'
+import { useParams } from 'react-router-dom'
+import { useUser } from '../../hooks/useUser'
 
 interface Message {
-  id: number;
+  id?: number;
   text: string;
-  sender: string;
-  timestamp: Date;
+  username?: string;
+  sender?: string;
+  timestamp?: Date;
+  ts?: number; // server timestamp (ms)
 }
 
 interface ChatBoxProps {
@@ -13,23 +17,61 @@ interface ChatBoxProps {
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({ }) => {
+  const { roomId, teamId } = useParams<{ roomId: string, teamId: string }>();
+  const { user } = useUser();
+  const currentUserName = user?.displayName || user?.email || 'Anon';
+
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: "Hey, need help with this problem?", sender: "User1", timestamp: new Date() },
-    { id: 2, text: "Yeah, I'm stuck on the array part", sender: "User2", timestamp: new Date() }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  
 
   const handleSend = () => {
-    if (!message.trim()) return;
-    
-    setMessages(prev => [...prev, {
-      id: prev.length + 1,
-      text: message,
-      sender: "User1",
-      timestamp: new Date()
-    }]);
+    if (!message.trim() || !roomId) return;
+
+    const payload = { roomId, teamId, username: currentUserName, text: message };
+
+    // emit to server (don't optimistically append to avoid duplicates — server will broadcast back)
+    socket?.emit('chatMessage', payload);
     setMessage('');
   };
+
+  // Join chat room and subscribe to events
+  useEffect(() => {
+    if (!roomId) return;
+
+    const payload = { roomId, teamId, username: currentUserName };
+    // join when socket is connected; also handle reconnects
+    const tryJoin = () => {
+      console.debug('[chat] emitting joinChat', payload);
+      socket?.emit('joinChat', payload);
+    };
+
+    if (socket?.connected) tryJoin();
+    socket?.on('connect', tryJoin);
+
+
+    const onHistory = (data: { scope: string; roomId: string; teamId?: string; messages: any[] }) => {
+      console.debug('[chat] chatHistory', data);
+      // server messages: { username, text, ts }
+      const mapped = (data.messages || []).map((m: any, i: number) => ({ id: i + 1, text: m.text, username: m.username, ts: m.ts || m.ts }));
+      setMessages(mapped);
+    };
+
+    const onIncoming = (data: { scope: string; roomId: string; teamId?: string; message: any }) => {
+      console.debug('[chat] chatMessage', data);
+      const m = data.message;
+      setMessages(prev => [...prev, { id: prev.length + 1, text: m.text, username: m.username, ts: m.ts || m.ts }]);
+    };
+
+    socket?.on('chatHistory', onHistory);
+    socket?.on('chatMessage', onIncoming);
+
+    return () => {
+      socket?.off('connect', tryJoin);
+      socket?.off('chatHistory', onHistory);
+      socket?.off('chatMessage', onIncoming);
+    };
+  }, [roomId, teamId, currentUserName]);
 
   return (
     <div className="h-full flex flex-col backdrop-blur-md bg-gray-900/70 border border-gray-800 rounded-lg shadow-lg">
@@ -40,20 +82,20 @@ const ChatBox: React.FC<ChatBoxProps> = ({ }) => {
 
       {/* Messages Area */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-900/30">
-        {messages.map(msg => (
+        {messages.map((msg, idx) => (
           <div 
-            key={msg.id}
-            className={`flex flex-col ${msg.sender === "User1" ? "items-end" : "items-start"}`}
+            key={idx}
+            className={`flex flex-col ${msg.username === currentUserName ? 'items-end' : 'items-start'}`}
           >
             <div className={`max-w-[80%] p-3 rounded-lg ${
-              msg.sender === "User1" 
-                ? "bg-cyan-500/20 border border-cyan-500/30" 
-                : "bg-gray-800/50 border border-gray-700"
+              msg.username === currentUserName
+                ? 'bg-cyan-500/20 border border-cyan-500/30'
+                : 'bg-gray-800/50 border border-gray-700'
             }`}>
               <p className="text-sm text-white">{msg.text}</p>
             </div>
             <span className="text-xs text-gray-500 mt-1">
-              {msg.sender} • {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {msg.username || msg.sender} • {new Date(msg.ts || msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         ))}
