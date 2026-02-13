@@ -30,6 +30,7 @@ function App() {
           <Route path="onboarding" element={<Onboarding />} />
           <Route path="SinglePlayer" element={<SinglePlayer />} />
           <Route path="practice/:problemId" element={<SinglePlayerProblem />} />
+          <Route path="practice/:problemId" element={<Problem />} />
           <Route path="MultiPlayer" element={<MultiPlayer />} />
           <Route path="room/:roomId" element={<RoomPage />} />
           <Route path="room/:roomId/problemset/team/:teamId" element={<Problemset />} />

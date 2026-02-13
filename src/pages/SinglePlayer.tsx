@@ -13,7 +13,6 @@ interface Problem {
 }
 
 const SinglePlayer: React.FC = () => {
-
     const navigate = useNavigate();
     const { user } = useUser();
     const [problems, setProblems] = useState<Problem[]>([]);

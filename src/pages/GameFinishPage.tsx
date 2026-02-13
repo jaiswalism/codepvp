@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getDoc, doc, deleteDoc } from 'firebase/firestore';
+import { getDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useUser } from '../hooks/useUser';
 import type { ProblemData } from './Problem';
+import { updateUserRating } from '../utils/updateUserStats';
 
 // Schema for firebase data
 export interface gameRes {
@@ -33,18 +34,27 @@ export interface gameRes {
 
 // --- Sub-components for better structure ---
 
-const ResultBanner: React.FC<{ didWin: boolean }> = ({ didWin }) => {
-  if (didWin) {
-    return (
-      <h1 className="text-6xl font-bold text-green-400 mb-2" style={{ textShadow: '0 0 15px #2f0, 0 0 20px #2f0' }}>
-        VICTORY
-      </h1>
-    );
-  }
+const ResultBanner: React.FC<{ didWin: boolean; ratingChange: number | null }> = ({ didWin, ratingChange }) => {
   return (
-    <h1 className="text-6xl font-bold text-red-500 mb-2" style={{ textShadow: '0 0 15px #f22, 0 0 20px #f22' }}>
-      DEFEAT
-    </h1>
+    <div className="text-center mb-6">
+      {didWin ? (
+        <h1 className="text-6xl font-bold text-green-400 mb-2" style={{ textShadow: '0 0 15px #2f0, 0 0 20px #2f0' }}>
+          VICTORY
+        </h1>
+      ) : (
+        <h1 className="text-6xl font-bold text-red-500 mb-2" style={{ textShadow: '0 0 15px #f22, 0 0 20px #f22' }}>
+          DEFEAT
+        </h1>
+      )}
+      
+      {/* Rating Display */}
+      {ratingChange !== null && (
+        <div className={`text-2xl font-mono font-bold mt-2 animate-bounce ${ratingChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          {ratingChange >= 0 ? `+${ratingChange}` : ratingChange} Rating
+        </div>
+      )}
+      <p className="text-lg text-gray-300">The match has concluded.</p>
+    </div>
   );
 };
 
@@ -55,15 +65,6 @@ interface TeamCardProps {
 
 const TeamCard: React.FC<TeamCardProps> = ({ teamData, allProblems }) => {
   const teamColor = teamData.name === 'Team A' ? 'cyan' : 'purple';
-  const { roomId } = useParams();
-
-  useEffect(() => {
-    delRoom()
-  })
-
-  const delRoom = async () => {
-    await deleteDoc(doc(db, "cities", roomId!));
-  }
 
   return (
     <div className="bg-gray-900/40 border border-gray-700/50 rounded-lg p-4">
@@ -114,6 +115,7 @@ const TeamCard: React.FC<TeamCardProps> = ({ teamData, allProblems }) => {
 const GameFinishPage: React.FC = () => {
   const [gameData, setGameData] = useState<gameRes | null>(null);
   const [myTeam, setMyTeam] = useState<string | null>(null);
+  const [ratingChange, setRatingChange] = useState<number | null>(null);
 
   const { roomId } = useParams();
 
@@ -144,6 +146,26 @@ const GameFinishPage: React.FC = () => {
 
       if (inTeamA) setMyTeam("Team A");
       else if (inTeamB) setMyTeam("Team B");
+
+      const teamPlayers = inTeamA ?
+        data?.teamA.players :
+        data?.teamB.players;
+
+      const userPlayer = teamPlayers?.find(
+        (player) => player.pid === currentUserName
+      );
+      
+      const userPoints = userPlayer?.points ?? 0;
+      const winningBonus = inTeamA ?
+        ((data.teamA.score > data.teamB.score) ? 50 : -50) :
+        ((data.teamB.score > data.teamA.score) ? 50 : -50);
+      
+      console.log(userPoints+winningBonus);
+
+      setRatingChange(userPoints+winningBonus);
+      
+      updateUserRating(user?.uid || "", userPoints+winningBonus);
+
       
     }
 
@@ -160,8 +182,7 @@ const GameFinishPage: React.FC = () => {
       
       {/* Header */}
       <div className="text-center mb-6">
-        <ResultBanner didWin={gameData?.winningTeam === myTeam} />
-        <p className="text-lg text-gray-300">The match has concluded.</p>
+        <ResultBanner didWin={gameData?.winningTeam === myTeam} ratingChange={ratingChange} />
       </div>
 
       {/* Main Results Grid */}
