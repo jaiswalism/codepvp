@@ -55,6 +55,8 @@ export function gameHandlers(io, socket) {
   socket.on("deleteRoom", ({ roomId }) => {
     const room = rooms[roomId];
 
+    if (!room) return;
+
     const allPlayers = [...room.teamA, ...room.teamB].filter(p => p !== null);
     allPlayers.forEach(p => {
       delete userToRoom[p.pid];

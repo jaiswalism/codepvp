@@ -22,13 +22,13 @@ admin.initializeApp({
 });
 
 const languageIdMap = {
-  python: 71,
-  cpp: 12,
-  java: 25,
-  javascript: 26,
-  typescript: 45,
-  go: 22,
-  rust: 41
+ python: 71,
+ cpp: 54,
+ java: 62,
+ javascript: 63,
+ typescript: 74,
+ go: 60,
+ rust: 73
 }
 
 const db = admin.firestore();
@@ -118,6 +118,7 @@ export async function getVerdict(sourceCode, problemId, languageId) {
 async function checkStatus(tokens, result) {
     const tokenQuery = tokens.join(",");
     const baseUrl = process.env.JUDGE + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+    let ac = false;
     const options = {
     method: 'GET',
         headers: {
@@ -184,6 +185,7 @@ async function checkStatus(tokens, result) {
             });
 
             //Mark Points
+            ac = allPassed
 
 
         }
@@ -192,6 +194,9 @@ async function checkStatus(tokens, result) {
         console.log(err);
     }
     
-    return result
+    return {
+        result: result,
+        ac: ac
+    }
 
 }
