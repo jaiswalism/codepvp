@@ -1,8 +1,21 @@
 import admin from 'firebase-admin';
-
-import serviceAccount from '../secrets/serviceAccountKey.json' with { type: 'json' };
+import fs from "fs";    
 
 import 'dotenv/config';
+
+let serviceAccount;
+
+if (process.env.K_SERVICE) {
+  // Running in Cloud Run
+  serviceAccount = JSON.parse(
+    fs.readFileSync("/secrets/serviceAccountKey", "utf8")
+  );
+} else {
+  // Running locally
+  serviceAccount = JSON.parse(
+    fs.readFileSync("./secrets/serviceAccountKey.json", "utf8")
+  );
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
