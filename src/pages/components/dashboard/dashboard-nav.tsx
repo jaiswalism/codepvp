@@ -2,6 +2,10 @@ import { Code, Trophy, Bell, Search } from "lucide-react"
 import { Link } from "react-router-dom"
 
 export function DashboardNav() {
+  const userlogout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
   return (
     <nav className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto flex items-center h-14 px-4">
@@ -48,6 +52,9 @@ export function DashboardNav() {
           </button>
           <button className="p-2 text-gray-400 hover:text-cyan-400 rounded-full hover:bg-gray-800/50">
             <Trophy size={18} />
+          </button>
+           <button onClick={userlogout} className="p-2 text-gray-400 hover:text-cyan-400 rounded-full hover:bg-gray-800/50">
+            Logout
           </button>
           
           <div className="ml-2 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
