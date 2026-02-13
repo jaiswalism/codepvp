@@ -1,132 +1,151 @@
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { useUser } from '../../../hooks/useUser';
+import { getRatingLevel } from '../../../utils/ratingUtils';
 
-
-import { useState, useEffect } from "react"
+// Mock data - this should come from user's rating history in Firestore
+const generateMockData = (currentRating: number) => {
+  const data = [];
+  const startRating = 200; // Minimum rating (Beginner level)
+  let rating = startRating;
+  
+  // Generate 30 days of data leading up to current rating
+  const increment = (currentRating - startRating) / 30;
+  
+  for (let i = 0; i < 30; i++) {
+    rating += increment + (Math.random() * 10 - 5); // Add some variation
+    rating = Math.max(200, rating); // Don't go below minimum rating
+    
+    const date = new Date();
+    date.setDate(date.getDate() - (30 - i));
+    
+    data.push({
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      rating: Math.round(rating),
+    });
+  }
+  
+  // Ensure last point is current rating
+  data[data.length - 1].rating = currentRating;
+  
+  return data;
+};
 
 export function ActivityHeatmap() {
-  const [activityData, setActivityData] = useState<{ [key: string]: number[] }>({})
+  const { userData, loading } = useUser();
+  const currentRating = userData?.rating || 200;
+  const ratingInfo = getRatingLevel(currentRating);
+  
+  // Generate or use actual rating history data
+  const ratingData = generateMockData(currentRating);
 
-  useEffect(() => {
-    const months = [
-      { name: "Jan", days: 31 },
-      { name: "Feb", days: 28 }, // Simplified, not handling leap years
-      { name: "Mar", days: 31 },
-      { name: "Apr", days: 30 },
-      { name: "May", days: 31 },
-      { name: "Jun", days: 30 },
-      { name: "Jul", days: 31 },
-      { name: "Aug", days: 31 },
-      { name: "Sep", days: 30 },
-      { name: "October", days: 31 },
-      { name: "November", days: 30 },
-      { name: "December", days: 31 }
-    ]
-
-    const data: { [key: string]: number[] } = {}
-
-    months.forEach((month, monthIndex) => {
-      const monthData: number[] = []
-
-    
-      const currentDate = new Date()
-      const currentDay = currentDate.getDate()
-
-      const daysToShow = monthIndex === 8 ? Math.min(currentDay, month.days) : month.days
-
-      for (let day = 1; day <= daysToShow; day++) {
-        // Generate realistic activity pattern - more activity on weekdays
-        const dayOfWeek = new Date(2024, monthIndex, day).getDay()
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-
-        let activity = 0
-        if (Math.random() > (isWeekend ? 0.8 : 0.4)) {
-          activity = Math.floor(Math.random() * 5)
-        }
-
-        monthData.push(activity)
-      }
-
-      data[month.name] = monthData
-    })
-
-    setActivityData(data)
-  }, [])
-
-  const getActivityColor = (level: number) => {
-    switch (level) {
-      case 0:
-        return "bg-gray-800/50"
-      case 1:
-        return "bg-cyan-900/70"
-      case 2:
-        return "bg-cyan-700/80"
-      case 3:
-        return "bg-cyan-500/90"
-      case 4:
-        return "bg-cyan-400"
-      default:
-        return "bg-gray-800/50"
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full"/>
+      </div>
+    );
   }
 
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"]
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
+          <p className="text-gray-300 text-sm">{payload[0].payload.date}</p>
+          <p className={`font-bold ${ratingInfo.color}`}>
+            Rating: {payload[0].value}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-          Coding Activity
-        </h3>
-        <div className="flex items-center gap-4 text-sm text-gray-400">
-          <span className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
-            Active days: 64
-          </span>
-          <span className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-purple-400"></div>
-            Max streak: 17
-          </span>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+            Rating Progress
+          </h3>
+          <p className="text-sm text-gray-400 mt-1">Last 30 days</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-gray-400">Current Rating</p>
+          <p className={`text-2xl font-bold ${ratingInfo.color}`}>
+            {currentRating}
+          </p>
+          <p className="text-xs text-gray-500">{ratingInfo.level}</p>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-6">
-          {monthNames.map((month) => (
-            <div key={month} className="flex flex-col items-center space-y-2">
-              <span className="text-xs text-gray-400 font-medium">{month}</span>
-              <div className="grid grid-cols-7 gap-1">
-                {activityData[month]?.map((day, dayIndex) => (
-                  <div
-                    key={dayIndex}
-                    className={`w-3 h-3 rounded-sm ${getActivityColor(day)} border border-gray-700/30 
-                    hover:border-cyan-400/50 transition-all duration-300 cursor-pointer
-                    hover:shadow-[0_0_8px_rgba(6,182,212,0.3)]`}
-                    title={`${month} ${dayIndex + 1}: ${day} submissions`}
-                  />
-                ))}
-                {/* Fill empty slots for incomplete weeks */}
-                {activityData[month] &&
-                  Array.from({
-                    length: Math.max(0, 7 - (activityData[month].length % 7)),
-                  }).map((_, emptyIndex) => <div key={`empty-${emptyIndex}`} className="w-3 h-3" />)}
-              </div>
-            </div>
-          ))}
-        </div>
+      <ResponsiveContainer width="100%" height={250}>
+        <AreaChart data={ratingData}>
+          <defs>
+            <linearGradient id="ratingGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+          <XAxis 
+            dataKey="date" 
+            stroke="#9CA3AF"
+            fontSize={12}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis 
+            stroke="#9CA3AF"
+            fontSize={12}
+            tickLine={false}
+            domain={[0, 'auto']}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Area
+            type="monotone"
+            dataKey="rating"
+            stroke="#06b6d4"
+            strokeWidth={2}
+            fill="url(#ratingGradient)"
+          />
+          <Line
+            type="monotone"
+            dataKey="rating"
+            stroke="#06b6d4"
+            strokeWidth={2}
+            dot={{ fill: '#06b6d4', r: 3 }}
+            activeDot={{ r: 5 }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
 
-        {/* Activity level legend */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-800">
-          <span className="text-xs text-gray-400">Less</span>
-          <div className="flex gap-1">
-            {[0, 1, 2, 3, 4].map((level) => (
-              <div
-                key={level}
-                className={`w-3 h-3 rounded-sm ${getActivityColor(level)} border border-gray-700/30`}
-              />
-            ))}
-          </div>
-          <span className="text-xs text-gray-400">More</span>
+      {/* Rating Milestones */}
+      <div className="mt-6 grid grid-cols-4 gap-3 text-center">
+        <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+          <p className="text-xs text-gray-400 mb-1">Beginner</p>
+          <p className={`text-sm font-semibold ${currentRating >= 200 ? 'text-green-400' : 'text-gray-500'}`}>
+            200-399
+          </p>
+        </div>
+        <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+          <p className="text-xs text-gray-400 mb-1">Medium</p>
+          <p className={`text-sm font-semibold ${currentRating >= 400 ? 'text-blue-400' : 'text-gray-500'}`}>
+            400-599
+          </p>
+        </div>
+        <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+          <p className="text-xs text-gray-400 mb-1">Advanced</p>
+          <p className={`text-sm font-semibold ${currentRating >= 600 ? 'text-purple-400' : 'text-gray-500'}`}>
+            600-799
+          </p>
+        </div>
+        <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+          <p className="text-xs text-gray-400 mb-1">Expert</p>
+          <p className={`text-sm font-semibold ${currentRating >= 800 ? 'text-orange-400' : 'text-gray-500'}`}>
+            800+
+          </p>
         </div>
       </div>
     </div>
-  )
+  );
 }

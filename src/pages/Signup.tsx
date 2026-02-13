@@ -48,7 +48,7 @@ const Signup: React.FC = () => {
       const result = await signInWithPopup(auth, provider);
       console.log(result.user);
       toast.success("Signed up with Google successfully!");
-      navigate('/');
+      navigate('/onboarding');
     } catch (err: any) {
       console.error(err.code, err.message);
       const firebaseErrorMessage = getFirebaseErrorMessage(err.code);
@@ -91,7 +91,7 @@ const Signup: React.FC = () => {
       
       console.log(userCredential.user);
       toast.success("Account created successfully!");
-      navigate("/");
+      navigate("/onboarding");
       
     } catch (error: any) {
       // --- Firebase Error Handling ---

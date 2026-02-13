@@ -30,11 +30,9 @@ app.post("/api/submit", async (req, res) => {
   const problemId = req.body.problemId;
   const language = req.body.language;
   const result = await getVerdict(sourceCode, problemId, language);
-  res.json({
-    result: result
-  })
+  res.json(result)
 })
 
 setupSocket(io);
 
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server running on port ${PORT}`));

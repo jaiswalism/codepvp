@@ -11,6 +11,7 @@ import Problemset from "./pages/Problemset"
 import GameFinishPage from "./pages/GameFinishPage"
 import NotFound from "./pages/NotFound"
 import Dashboard from "./pages/Dahboard"
+import Onboarding from "./pages/onboarding"
 import './App.css'
 import { UserProvider } from "./hooks/useUser"
 
@@ -25,7 +26,9 @@ function App() {
           <Route path="404" element={<NotFound />} />
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
+          <Route path="onboarding" element={<Onboarding />} />
           <Route path="SinglePlayer" element={<SinglePlayer />} />
+          <Route path="practice/:problemId" element={<Problem />} />
           <Route path="MultiPlayer" element={<MultiPlayer />} />
           <Route path="room/:roomId" element={<RoomPage />} />
           <Route path="room/:roomId/problemset/team/:teamId" element={<Problemset />} />

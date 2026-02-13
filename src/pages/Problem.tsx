@@ -11,6 +11,7 @@ import { OrbitProgress } from 'react-loading-indicators';
 import { markTeamSolved } from './Problemset';
 import { useMatchTimer } from '../hooks/useMatchTimer';
 import ChatBox from './components/chat-box';
+import { LANGUAGES } from '../utils/languageTemplate'
 
 // Problem Data schema stored in firebase
 export interface ProblemData {
@@ -47,12 +48,12 @@ interface TestCases {
 // Mapping monaco languageId to Judge0 languageId
 const languageIdMap = {
  python: 71,
- cpp: 12,
- java: 25,
- javascript: 26,
- typescript: 45,
- go: 22,
- rust: 41
+ cpp: 54,
+ java: 62,
+ javascript: 63,
+ typescript: 74,
+ go: 60,
+ rust: 73
 } as const;
 
 type Language = keyof typeof languageIdMap;
@@ -77,16 +78,27 @@ const Problem: React.FC = () => {
   const testResultsRef = useRef<HTMLDivElement | null>(null);
 
   // Generate unique localStorage key for this problem
-  const storageKey = `code_${roomId}_${problemId}_${teamId}`;
+  const storageKey = `code_${roomId}_${problemId}_${teamId}_${language}`;
 
   const navigate = useNavigate();
 
   const { timeLeft, isMatchOver } = useMatchTimer(roomId);
-  const hasAutoSubmitted = useRef(false);
+//   const hasAutoSubmitted = useRef(false);
 
-  const handleLangChange = (event: any) => {
-   setLanguage(event.target.value)
-  }
+  	const handleLangChange = (event: any) => {
+		const newLanguage = event.target.value as Language;
+   		setLanguage(newLanguage)
+
+		const newStorageKey = `code_${roomId}_${problemId}_${teamId}_${newLanguage}`;
+
+		// Load saved code from localStorage on mount
+		const savedCode = localStorage.getItem(newStorageKey);
+		if (savedCode) {
+			setCode(savedCode);
+		} else {
+			setCode(LANGUAGES[language].template)
+		}
+  	}
 
     // Function to mark points for a solved question for a team
     // const markPoints = async (roomId: string, teamId: string, problemId: string, passed: number) => {
@@ -137,13 +149,13 @@ const Problem: React.FC = () => {
 
     // }
 
-  useEffect(() => {
-    if (isMatchOver && !hasAutoSubmitted.current) {
-      console.log("Match ended. Auto-submitting code...");
-      Run(); 
-      hasAutoSubmitted.current = true;
-    }
-  }, [isMatchOver]);
+//   useEffect(() => {
+//     if (isMatchOver && !hasAutoSubmitted.current) {
+//       console.log("Match ended. Auto-submitting code...");
+//       Run(); 
+//       hasAutoSubmitted.current = true;
+//     }
+//   }, [isMatchOver]);
 
 
   // --- Collaborative Editing: Prevent remote overwrite of local typing ---
@@ -174,8 +186,10 @@ const Problem: React.FC = () => {
     const savedCode = localStorage.getItem(storageKey);
     if (savedCode) {
       setCode(savedCode);
-    }
-  }, [problemId]);
+    } else {
+		setCode(LANGUAGES[language].template)
+	}
+  }, [problemId, language]);
 
   // Socket Connection
   useEffect(() => {
@@ -276,6 +290,9 @@ const Problem: React.FC = () => {
         setTestResults([...data.result])
 
         // Mark Points here
+		if (data.ac) {
+			markTeamSolved(teamId!, problemId!, roomId!, currentUserName)
+		}
 
         setIsLoading(false);
 
@@ -289,184 +306,184 @@ const Problem: React.FC = () => {
    Checks status of all the problems submitted
    Calls markPoints or markTeamSolved based on testcase validation 
   */
-  const checkStatus = async (tokens: string[], tempRes: TestCases[]) => {
-   const tokenQuery = tokens.join(",")
-   const baseUrl = import.meta.env.VITE_JUDGE0_URL + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
-   const options = {
-    method: 'GET',
-    headers: {
-     // 'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
-     // 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-     "Cache-Control": "no-cache",
-     "Pragma": "no-cache",
-    },
-   };
+//   const checkStatus = async (tokens: string[], tempRes: TestCases[]) => {
+//    const tokenQuery = tokens.join(",")
+//    const baseUrl = import.meta.env.VITE_JUDGE0_URL + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+//    const options = {
+//     method: 'GET',
+//     headers: {
+//      // 'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
+//      // 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
+//      "Cache-Control": "no-cache",
+//      "Pragma": "no-cache",
+//     },
+//    };
 
-   try {
-    let allDone = false;
-    let results: any[] = [];
+//    try {
+//     let allDone = false;
+//     let results: any[] = [];
 
-    while (!allDone) {
-     const url = `${baseUrl}&_=${Date.now()}`;
-     let response = await fetch(url, options);
-     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-     }
+//     while (!allDone) {
+//      const url = `${baseUrl}&_=${Date.now()}`;
+//      let response = await fetch(url, options);
+//      if (!response.ok) {
+//       throw new Error(`HTTP error! status: ${response.status}`);
+//      }
 
-     let data = await response.json();
-     results = data.submissions || data;
+//      let data = await response.json();
+//      results = data.submissions || data;
 
-     // Guard: remove nulls
-     results = results.filter((res: any) => res !== null);
+//      // Guard: remove nulls
+//      results = results.filter((res: any) => res !== null);
 
-     // If we still have missing results, keep polling
-     allDone =
-      results.length === tokens.length &&
-      results.every(
-       (res: any) => res.status?.id !== 1 && res.status?.id !== 2
-      );
+//      // If we still have missing results, keep polling
+//      allDone =
+//       results.length === tokens.length &&
+//       results.every(
+//        (res: any) => res.status?.id !== 1 && res.status?.id !== 2
+//       );
 
-     if (!allDone) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-     }
-    }
+//      if (!allDone) {
+//       await new Promise((resolve) => setTimeout(resolve, 2000));
+//      }
+//     }
 
-    let allPassed = true;
-    let countPassed = 0;
-    results.forEach((res: any, idx: number) => {
-     if (!res || !res.status) {
-      console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
-      allPassed = false;
-      return;
-     }
+//     let allPassed = true;
+//     let countPassed = 0;
+//     results.forEach((res: any, idx: number) => {
+//      if (!res || !res.status) {
+//       console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
+//       allPassed = false;
+//       return;
+//      }
 
-     const stdout = res.stdout ? atob(res.stdout) : null;
-     const stderr = res.stderr ? atob(res.stderr) : null;
+//      const stdout = res.stdout ? atob(res.stdout) : null;
+//      const stderr = res.stderr ? atob(res.stderr) : null;
 
-     const verdict = res.status?.description || "Unknown";
-     const passed = res.status?.id === 3; // 3 = Accepted
+//      const verdict = res.status?.description || "Unknown";
+//      const passed = res.status?.id === 3; // 3 = Accepted
 
-     tempRes[idx] = {
-      ...tempRes[idx],
-      output: stdout ?? "",
-      error: !!stderr,
-      errorMessage: stderr ?? "",
-      verdict: verdict,
-     };
+//      tempRes[idx] = {
+//       ...tempRes[idx],
+//       output: stdout ?? "",
+//       error: !!stderr,
+//       errorMessage: stderr ?? "",
+//       verdict: verdict,
+//      };
 
-     if (passed) {
-      countPassed += 1
-     } else {
-      allPassed = false;
-     }
+//      if (passed) {
+//       countPassed += 1
+//      } else {
+//       allPassed = false;
+//      }
 
-        });
+//         });
         
-        // markPoints(roomId!, teamId!, problemId!, countPassed)
+//         // markPoints(roomId!, teamId!, problemId!, countPassed)
 
-        if (allPassed && socket && roomId && problemId && teamId) {
-          socket.emit("markSolved", { roomId, teamId, problemId, username: currentUserName });
-          markTeamSolved(teamId, problemId, roomId, currentUserName)
-        }
-      } catch (err: any) {
-        console.error(err);
-      }
-      setIsLoading(false);
-      setTestResults([...tempRes]);
-      setTimeout(() => {
-        testResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    };
+//         if (allPassed && socket && roomId && problemId && teamId) {
+//           socket.emit("markSolved", { roomId, teamId, problemId, username: currentUserName });
+//           markTeamSolved(teamId, problemId, roomId, currentUserName)
+//         }
+//       } catch (err: any) {
+//         console.error(err);
+//       }
+//       setIsLoading(false);
+//       setTestResults([...tempRes]);
+//       setTimeout(() => {
+//         testResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+//       }, 100);
+//     };
 
   /*
    Called when user clicks Submit
    Sends code along with testcases to Judge0 and gets back tokens which is then checked
    via checkStatus funciton
   */
-  async function Run() {
-    setIsLoading(true);
-    const sourceCode = editorRef.current?.getValue();
-    if(sourceCode === ""){ 
-     setIsLoading(false)
-     return
-    }
-    const url = import.meta.env.VITE_JUDGE0_URL + '/submissions/batch?fields=*';
-    const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
-    let submissions: {}[] = [];
-    let tempRes: TestCases[] = [];
+//   async function Run() {
+//     setIsLoading(true);
+//     const sourceCode = editorRef.current?.getValue();
+//     if(sourceCode === ""){ 
+//      setIsLoading(false)
+//      return
+//     }
+//     const url = import.meta.env.VITE_JUDGE0_URL + '/submissions/batch?fields=*';
+//     const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
+//     let submissions: {}[] = [];
+//     let tempRes: TestCases[] = [];
 
-    // get sample testcases
-    data?.samples.map((tc) => {
-     submissions.push(
-      {
-       source_code: normalizedCode,
-       language_id: languageIdMap[language],
-       stdin: tc.input,
-       expected_output: tc.output,
-      }
-     );
-      tempRes.push(
-       {
-        input: tc.input,
-        expected: tc.output,
-        output: "",
-        verdict: "",
-        hidden: false,
-        error: false,
-        errorMessage: ""
-       }
-      );
-    })
+//     // get sample testcases
+//     data?.samples.map((tc) => {
+//      submissions.push(
+//       {
+//        source_code: normalizedCode,
+//        language_id: languageIdMap[language],
+//        stdin: tc.input,
+//        expected_output: tc.output,
+//       }
+//      );
+//       tempRes.push(
+//        {
+//         input: tc.input,
+//         expected: tc.output,
+//         output: "",
+//         verdict: "",
+//         hidden: false,
+//         error: false,
+//         errorMessage: ""
+//        }
+//       );
+//     })
 
-    data?.hiddenTestCases.map((tc) => {
-     submissions.push(
-      {
-       source_code: normalizedCode,
-       language_id: languageIdMap[language],
-       stdin: tc.input,
-       expected_output: tc.output,
-      }
-     );
-      tempRes.push(
-       {
-        input: tc.input,
-        expected: tc.output,
-        output: "",
-        verdict: "",
-        hidden: true,
-        error: false,
-        errorMessage: ""
-       }
-      );
-    })
+//     data?.hiddenTestCases.map((tc) => {
+//      submissions.push(
+//       {
+//        source_code: normalizedCode,
+//        language_id: languageIdMap[language],
+//        stdin: tc.input,
+//        expected_output: tc.output,
+//       }
+//      );
+//       tempRes.push(
+//        {
+//         input: tc.input,
+//         expected: tc.output,
+//         output: "",
+//         verdict: "",
+//         hidden: true,
+//         error: false,
+//         errorMessage: ""
+//        }
+//       );
+//     })
 
-    setTestResults(tempRes);
+//     setTestResults(tempRes);
 
-    console.log(submissions);
+//     console.log(submissions);
 
-    const options = {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-       submissions: submissions
-      }),
-    };
+//     const options = {
+//       method: 'POST',
+//       headers: {
+//         'content-type': 'application/json',
+//       },
+//       body: JSON.stringify({
+//        submissions: submissions
+//       }),
+//     };
 
-    try {
-      const response = await fetch(url, options);
-      if(!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      const tokens = data.map((d: any) => d.token);
-      await checkStatus(tokens, tempRes);
-    } catch (err: any) {
-      console.error(err);
-    }
-  }
+//     try {
+//       const response = await fetch(url, options);
+//       if(!response.ok) {
+//         const errorData = await response.json();
+//         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+//       }
+//       const data = await response.json();
+//       const tokens = data.map((d: any) => d.token);
+//       await checkStatus(tokens, tempRes);
+//     } catch (err: any) {
+//       console.error(err);
+//     }
+//   }
 
     // useEffect(() => {
 
@@ -504,7 +521,7 @@ const Problem: React.FC = () => {
     //   fetchData();
     // },[passData]);
 
- const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
+const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
 
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden">
@@ -536,8 +553,8 @@ const Problem: React.FC = () => {
         </div>
       </header>
 
-   {/* Main Content */}
-   <div className="flex flex-1 min-h-0">
+      {/* Main Content */}
+        <div className="flex flex-1 min-h-0">
     {/* Left Panel */}
     <div className="w-[45%] flex flex-col border-r border-gray-700/50">
      {/* Tabs */}
