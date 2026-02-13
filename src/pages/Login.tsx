@@ -1,6 +1,7 @@
 import React, { type FormEvent, useState } from 'react';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react'; // 👈 Added Lucide icons
 
@@ -33,12 +34,36 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const provider = new GoogleAuthProvider();
 
+  // Check onboarding status
+  const checkOnboardingStatus = async (userId: string) => {
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.completedOnboarding) {
+          navigate('/');
+        } else {
+          navigate('/onboarding');
+        }
+      } else {
+        // User document doesn't exist, send to onboarding
+        navigate('/onboarding');
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      // On error, default to onboarding to be safe
+      navigate('/onboarding');
+    }
+  };
+
   const handleGoogle = () => {
     setError(null);
     signInWithPopup(auth, provider)
       .then((result) => {
         console.log(result.user);
-        navigate('/');
+        checkOnboardingStatus(result.user.uid);
       })
       .catch((err: any) => {
         const firebaseErrorMessage = getFirebaseErrorMessage(err.code);
@@ -54,7 +79,7 @@ const Login: React.FC = () => {
     signInWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
         console.log(userCredential.user);
-        navigate('/');
+        checkOnboardingStatus(userCredential.user.uid);
       })
       .catch((err: any) => {
         const firebaseErrorMessage = getFirebaseErrorMessage(err.code);
