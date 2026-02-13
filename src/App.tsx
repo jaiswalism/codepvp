@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import Layout from "./pages/Layout"
 import Home from "./pages/Home"
 import SinglePlayer from "./pages/SinglePlayer"
+import SinglePlayerProblem from "./pages/SinglePlayerProblem"
 import Signup from "./pages/Signup"
 import Login from "./pages/Login"
 import Problem from "./pages/Problem"
@@ -28,6 +29,7 @@ function App() {
           <Route path="signup" element={<Signup />} />
           <Route path="onboarding" element={<Onboarding />} />
           <Route path="SinglePlayer" element={<SinglePlayer />} />
+          <Route path="practice/:problemId" element={<SinglePlayerProblem />} />
           <Route path="MultiPlayer" element={<MultiPlayer />} />
           <Route path="room/:roomId" element={<RoomPage />} />
           <Route path="room/:roomId/problemset/team/:teamId" element={<Problemset />} />
