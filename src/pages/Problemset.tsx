@@ -57,7 +57,7 @@ export default function Problemset() {
   const navigate = useNavigate();
   const { timeLeft, isMatchOver } = useMatchTimer(roomId);
   const { user, loading } = useUser();
-  const currentUserName = user?.displayName || user?.email || "Anon";
+  const [currentUserName, setCurrentUserName] = useState( user?.displayName || user?.email || "Anon")
 
   useEffect(() => {
     if(!user && !loading) navigate("/login");
@@ -81,6 +81,8 @@ export default function Problemset() {
       // Redirects to 404 if room not created earlier
       if(!docSnap.exists()) navigate("/404");
 
+      setCurrentUserName(user?.displayName || user?.email || "Anon");
+
       const teamKey = teamId == "A" ? "teamA" : "teamB";
 
         const players: {
@@ -98,7 +100,7 @@ export default function Problemset() {
         console.log(pIdx)
         console.log(currentUserName)
 
-        if (pIdx == -1) navigate("/404");
+        // if (pIdx == -1) navigate("/404");
 
       setData(docSnap.data() as gameRes)
       
