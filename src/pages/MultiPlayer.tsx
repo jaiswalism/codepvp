@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+// import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../hooks/useUser';
 import { db } from '../../firebaseConfig';
 import { doc, setDoc } from 'firebase/firestore';
 import LoadingScreen from './components/LoadingScreen';
+import { socket } from '../utils/socket';
 
 interface activeRoom {
   name: string;
@@ -22,6 +23,8 @@ export interface RoomSettings {
 
 const MultiPlayer: React.FC = () => {
   const [showJoinInput, setShowJoinInput] = useState(false);
+  const [view, setView] = useState<'menu' | 'custom'>('menu');
+  const [showBattleSizes, setShowBattleSizes] = useState(false);
   const [code, setCode] = useState();
   const [activeRooms, setActiveRooms] = useState<activeRoom[]>([]);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
@@ -37,10 +40,41 @@ const MultiPlayer: React.FC = () => {
   const navigate = useNavigate();
 
   const { user, loading } = useUser()
+  const currentUserName = user?.displayName || user?.email || "Anon";
     
   useEffect(() => {
     if(!user && !loading) navigate("/login");
   })
+
+  useEffect(() => {
+    if (currentUserName) {
+      socket.emit("registerUser", { username: currentUserName });
+    }
+  }, [currentUserName]);
+
+
+  useEffect(() => {
+    socket.on("matchFound", (data:any) => {
+      const { roomId, team } = data;
+      navigate(`/room/${roomId}/problemset/team/${team}`);
+    });
+
+  })
+
+  const startMatchmaking = (size: '1v1' | '2v2') => {
+    setIsJoiningRoom(true);
+    console.log(`Searching for a ${size} battle...`);
+    // Add your matchmaking logic here
+    socket.emit("joinQueue", { username: currentUserName });
+  };
+
+  // Handle "Battle" (Quick Match logic)
+  // const handleQuickBattle = () => {
+  //   // Logic for finding the first available public room or queueing
+  //   setIsJoiningRoom(true);
+  //   // Placeholder logic: navigate to a matchmaking queue or random room
+  //   console.log("Searching for a battle...");
+  // };
 
   
   const handleCreateRoom = async () => {
@@ -173,19 +207,72 @@ const MultiPlayer: React.FC = () => {
       shadow-2xl shadow-cyan-500/10">
       
       {/* Header */}
-      <div className="w-full flex justify-between items-center mb-8">
-        <h2 className="text-5xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>Multiplayer</h2>
-        <Link to="/">
-        <button className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          Back to Menu
-        </button>
-        </Link>
-      </div>
+        <div className="w-full flex justify-between items-center mb-8">
+          <h2 className="text-5xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>
+            {view === 'menu' ? 'Multiplayer' : 'Custom Room'}
+          </h2>
+          <button 
+            onClick={() => view === 'custom' ? setView('menu') : navigate('/')}
+            className="text-purple-300 hover:text-white transition-colors duration-300 text-lg flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            {view === 'menu' ? 'Back to Menu' : 'Back'}
+          </button>
+        </div>
 
       {/* Main Options */}
       <div className="w-full flex flex-col gap-6">
 
+        {/* --- VIEW 1: MAIN SELECTION --- */}
+          {view === 'menu' && (
+            <div className="flex flex-col gap-6">
+              {!showBattleSizes ? (
+                <>
+                  <button 
+                    onClick={() => setShowBattleSizes(true)}
+                    className="w-full font-bold text-gray-900 bg-gradient-to-r from-cyan-400 to-blue-500 border-2 border-transparent rounded-lg py-6 text-3xl transition-all duration-300 transform hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)]"
+                  >
+                    BATTLE
+                  </button>
+
+                  <button 
+                    onClick={() => setView('custom')}
+                    className="w-full font-bold text-cyan-300 bg-transparent border-2 border-cyan-400/50 rounded-lg py-6 text-3xl transition-all duration-300 transform hover:scale-105 hover:bg-cyan-900/20 hover:border-cyan-400"
+                  >
+                    CUSTOM ROOM
+                  </button>
+                </>
+              ) : (
+                /* --- BATTLE SUB-MENU (Size Selection) --- */
+                <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <h3 className="text-center text-xl text-cyan-400 mb-2 uppercase tracking-widest">Select Mode</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => startMatchmaking('1v1')}
+                      className="font-bold text-white bg-gray-800 border-2 border-cyan-500/50 rounded-lg py-8 text-2xl hover:bg-cyan-500 hover:text-gray-900 transition-all"
+                    >
+                      1 v 1
+                    </button>
+                    <button 
+                      onClick={() => startMatchmaking('2v2')}
+                      className="font-bold text-white bg-gray-800 border-2 border-purple-500/50 rounded-lg py-8 text-2xl hover:bg-purple-500 hover:text-gray-900 transition-all"
+                    >
+                      2 v 2
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => setShowBattleSizes(false)}
+                    className="text-gray-500 hover:text-white text-sm mt-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {view === 'custom' && (
+            <div className="animate-in slide-in-from-right-4 duration-300">
         {showCreateOptions ? (
             <div className="w-full flex flex-col gap-6 p-4 border border-gray-700/50 rounded-lg bg-gray-900/30 animate-fade-in">
               <div className="flex justify-between items-center">
@@ -365,6 +452,8 @@ const MultiPlayer: React.FC = () => {
           </div>
         )}
       </div>
+      )}
+    </div>
     </div>
     </div>
   );
