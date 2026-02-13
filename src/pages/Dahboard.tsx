@@ -1,10 +1,11 @@
 import { ProfileHeader } from "./components/dashboard/profile-header"
 
+
 import { Languages } from "./components/dashboard/languages"
 import { ProblemStats } from "./components/dashboard/problem-stats"
 import { BadgeSection } from "./components/dashboard/badge-section"
-import { ActivityHeatmap } from "./components/dashboard/activity-heatmap"
-import { RecentActivity } from "./components/dashboard/recent-activity"
+import { ActivityHeatmap as RatingGraph } from "./components/dashboard/activity-heatmap"
+
 import { DashboardNav } from "./components/dashboard/dashboard-nav"
 import AnimatedBackground from './components/AnimatedBackground'
 import { useNavigate } from 'react-router-dom';
@@ -70,12 +71,10 @@ export default function ProfilePage() {
               </div>
 
               <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6 shadow-lg hover:border-gray-700 transition-colors">
-                <ActivityHeatmap />
+                <RatingGraph />
               </div>
 
-              <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-xl p-6 shadow-lg hover:border-gray-700 transition-colors">
-                <RecentActivity />
-              </div>
+            
             </div>
           </div>
         </div>

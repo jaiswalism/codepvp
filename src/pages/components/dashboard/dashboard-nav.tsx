@@ -1,7 +1,21 @@
 import { Code, Trophy, Bell, Search } from "lucide-react"
 import { Link } from "react-router-dom"
+import { useUser } from "../../../hooks/useUser"
 
 export function DashboardNav() {
+  const { userData, loading } = useUser();
+  const profileimage = userData?.avatar || "/gamer-avatar.png";
+  
+  if (loading) {
+    return (
+      <div className="gaming-border gaming-glow bg-card rounded-lg">
+        <div className="p-6 flex items-center justify-center">
+          <div className="animate-spin w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full"/>
+        </div>
+      </div>
+    );
+  }
+  
   const userlogout = () => {
     localStorage.removeItem("token");
     window.location.href = "/login";
@@ -58,7 +72,7 @@ export function DashboardNav() {
           </button>
           
           <div className="ml-2 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-            <img src="/gamer-avatar.png" alt="Avatar" className="w-full h-full rounded-full object-cover" />
+            <img src={profileimage} alt="Avatar" className="w-full h-full rounded-full object-cover" />
           </div>
         </div>
       </div>
