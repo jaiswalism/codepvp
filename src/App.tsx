@@ -26,6 +26,7 @@ function App() {
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
           <Route path="SinglePlayer" element={<SinglePlayer />} />
+          <Route path="practice/:problemId" element={<Problem />} />
           <Route path="MultiPlayer" element={<MultiPlayer />} />
           <Route path="room/:roomId" element={<RoomPage />} />
           <Route path="room/:roomId/problemset/team/:teamId" element={<Problemset />} />
