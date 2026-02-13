@@ -47,16 +47,25 @@ const MultiPlayer: React.FC = () => {
   })
 
   useEffect(() => {
-    socket.on("matchFound", ({ roomId }) => {
-      navigate(`/room/${roomId}`);
+    if (currentUserName) {
+      socket.emit("registerUser", { username: currentUserName });
+    }
+  }, [currentUserName]);
+
+
+  useEffect(() => {
+    socket.on("matchFound", (data:any) => {
+      const { roomId, team } = data;
+      navigate(`/room/${roomId}/problemset/team/${team}`);
     });
+
   })
 
   const startMatchmaking = (size: '1v1' | '2v2') => {
     setIsJoiningRoom(true);
     console.log(`Searching for a ${size} battle...`);
     // Add your matchmaking logic here
-    socket.emit("joinQueue", { currentUserName });
+    socket.emit("joinQueue", { username: currentUserName });
   };
 
   // Handle "Battle" (Quick Match logic)

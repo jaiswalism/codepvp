@@ -8,6 +8,12 @@ import { matchmakingHandlers } from "./matchmakingHandlers.js";
 export function setupSocket(io) {
   io.on("connection", (socket) => {
 
+    socket.on("registerUser", ({ username }) => {
+      socket.username = username;     // store it on socket
+      socket.join(username);          // join personal room
+      console.log("Registered:", username);
+    });
+
     roomHandlers(io, socket);
     gameHandlers(io, socket);
     editorHandlers(io, socket);
