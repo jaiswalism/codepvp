@@ -63,7 +63,7 @@ const Problem: React.FC = () => {
     const { roomId, teamId } = useParams<{ roomId: string, teamId: string }>();
 
     const [data, setData] = useState<ProblemData | null>(null);
-    const [passData, setPassData] = useState<gameRes | null>(null);
+//    const [passData, setPassData] = useState<gameRes | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [language, setLanguage] = useState<Language>("python");
 
