@@ -3,14 +3,13 @@ import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc} from 'firebase/firestore';
 import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
 import { OrbitProgress } from 'react-loading-indicators';
 import { markTeamSolved } from './Problemset';
 import { useMatchTimer } from '../hooks/useMatchTimer';
-import type { gameRes } from './GameFinishPage';
 import ChatBox from './components/chat-box';
 
 // Problem Data schema stored in firebase
@@ -30,6 +29,8 @@ export interface ProblemData {
   statement: string;
   tags: string[];
   title: string;
+  statusA: number;
+  statusB: number;
 }
 
 // Testcase interface for validating test cases
@@ -62,7 +63,6 @@ const Problem: React.FC = () => {
     const { roomId, teamId } = useParams<{ roomId: string, teamId: string }>();
 
     const [data, setData] = useState<ProblemData | null>(null);
-    const [passData, setPassData] = useState<gameRes | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [language, setLanguage] = useState<Language>("python");
 
@@ -85,50 +85,53 @@ const Problem: React.FC = () => {
     }
 
     // Function to mark points for a solved question for a team
-    const markPoints = async (roomId: string, teamId: string, problemId: string, passed: number) => {
-      const docRef = doc(db, "RoomSet", roomId!);
-      const docSnap = await getDoc(docRef);
-      const docData = docSnap.data();
+    // const markPoints = async (roomId: string, teamId: string, problemId: string, passed: number) => {
+    //   const docRef = doc(db, "RoomSet", roomId!);
+    //   const docSnap = await getDoc(docRef);
+    //   const docData = docSnap.data();
       
-      const teamKey = teamId == "A" ? "teamA" : "teamB"; // Get Team
-      const problemArray = docData?.allProblems || [];
-      const problem = problemArray.find((p: any) => p.id === problemId); // Get Problem solved
+    //   const teamKey = teamId == "A" ? "teamA" : "teamB"; // Get Team
+    //   const statusKey = teamId == "A" ? "statusA" : "statusB";
+    //   const problemArray = docData?.allProblems || [];
+    //   const problem = problemArray.find((p: any) => p.id === problemId); // Get Problem solved
 
-      // If problem already marked as solved then dont consider it
-      if (docData?.[teamKey].solvedProblems.includes(problem.title)) return ;
+    //   // If problem already marked as solved then dont consider it
+    //   if (docData?.[teamKey].solvedProblems.includes(problem.title)) return ;
 
-      // Need a better way to award points because this is exploitable
-      const currentScore = docData?.[teamKey].score;
-      const pointsAwarded = 10 * passed;
+    //   const pointsAwarded = 10 * passed;
+    //   if (problem[statusKey] >= pointsAwarded) return;
 
-      await updateDoc(docRef, {
-        [`${teamKey}.score`]: currentScore + pointsAwarded,
-      });
+    //   // Need a better way to award points because this is exploitable
+    //   const currentScore = docData?.[teamKey].score;
 
-      const players: {
-          pid: string;
-          points: number;
-          problemSolved: number;
-        }[] = docSnap.data()?.[teamKey].players || [];
+    //   await updateDoc(docRef, {
+    //     [`${teamKey}.score`]: currentScore + (pointsAwarded - problem[statusKey]),
+    //   });
 
-      const playerIndex = players.findIndex(
-        (p) => p.pid === currentUserName
-      );
+    //   const players: {
+    //       pid: string;
+    //       points: number;
+    //       problemSolved: number;
+    //     }[] = docSnap.data()?.[teamKey].players || [];
 
-      if (playerIndex !== -1) {
-        const updatedPlayers = [...docData?.[teamKey].players];
-        updatedPlayers[playerIndex] = {
-          ...updatedPlayers[playerIndex],
-          points: updatedPlayers[playerIndex].points + pointsAwarded,
-          problemsSolved: updatedPlayers[playerIndex].problemsSolved + passed, // or just +1 if 1 problem solved
-        };
+    //   const playerIndex = players.findIndex(
+    //     (p) => p.pid === currentUserName
+    //   );
 
-        await updateDoc(docRef, { // Update the players array
-          [`${teamKey}.players`]: updatedPlayers,
-        });
-      }
+    //   if (playerIndex !== -1) {
+    //     const updatedPlayers = [...docData?.[teamKey].players];
+    //     updatedPlayers[playerIndex] = {
+    //       ...updatedPlayers[playerIndex],
+    //       points: updatedPlayers[playerIndex].points + (pointsAwarded - problem[statusKey]),
+    //       problemsSolved: updatedPlayers[playerIndex].problemsSolved,
+    //     };
 
-    }
+    //     await updateDoc(docRef, { // Update the players array
+    //       [`${teamKey}.players`]: updatedPlayers,
+    //     });
+    //   }
+
+    // }
 
     useEffect(() => {
         if (isMatchOver && !hasAutoSubmitted.current) {
@@ -335,13 +338,11 @@ const Problem: React.FC = () => {
 
         });
         
-        markPoints(roomId!, teamId!, problemId!, countPassed)
+        // markPoints(roomId!, teamId!, problemId!, countPassed)
 
         if (allPassed && socket && roomId && problemId && teamId) {
-          socket.emit("markSolved", { roomId, teamId, problemId });
-          if(passData) {
-            markTeamSolved(teamId, problemId, roomId, passData)
-          }
+          socket.emit("markSolved", { roomId, teamId, problemId, username: currentUserName });
+          markTeamSolved(teamId, problemId, roomId, currentUserName)
         }
       } catch (err: any) {
         console.error(err);
@@ -443,40 +444,41 @@ const Problem: React.FC = () => {
         }
     }
 
-    useEffect(() => {
+    // useEffect(() => {
 
-      if (!user) return;
-      if (!roomId) return;
+    //   if (!user) return;
+    //   if (!roomId) return;
 
-      const fetchData = async () => {
-        const docRef = doc(db, "RoomSet", roomId!);
-        const docSnap = await getDoc(docRef);
+    //   const fetchData = async () => {
+    //     const docRef = doc(db, "RoomSet", roomId!);
+    //     const docSnap = await getDoc(docRef);
 
-        // Redirects to 404 if room not created earlier
-        if(!docSnap.exists()) navigate("/404");
+    //     // Redirects to 404 if room not created earlier
+    //     if(!docSnap.exists()) navigate("/404");
 
-        const teamKey = teamId == "A" ? "teamA" : "teamB";
+    //     const teamKey = teamId == "A" ? "teamA" : "teamB";
 
-        const players: {
-          pid: string;
-          points: number;
-          problemSolved: number;
-        }[] = docSnap.data()?.[teamKey].players || [];
+    //     const players: {
+    //       pid: string;
+    //       points: number;
+    //       problemSolved: number;
+    //     }[] = docSnap.data()?.[teamKey].players || [];
 
-        let pIdx = -1
+    //     let pIdx = -1
 
-        pIdx = players.findIndex(
-          (p) => p.pid === currentUserName
-        );
+    //     pIdx = players.findIndex(
+    //       (p) => p.pid === currentUserName
+    //     );
 
-        if (pIdx == -1) navigate("/404"); // Player not found in the team
+    //     if (pIdx == -1) navigate("/404"); // Player not found in the team
   
-        setPassData(docSnap.data() as gameRes)
+    //     setPassData(docSnap.data() as gameRes)
+    //     console.log("fetched")
         
-        }
+    //     }
   
-      fetchData();
-    }, [roomId]);
+    //   fetchData();
+    // },[passData]);
 
   const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
 

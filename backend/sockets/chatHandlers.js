@@ -1,17 +1,43 @@
 import { rooms } from '../store/rooms.js';
 
+// Helper to infer team ('A' or 'B') for a username in a room
+function inferTeamForUser(room, username) {
+  if (!room || !username) return null;
+  const a = room.teamA || [];
+  const b = room.teamB || [];
+  if (a.some(p => p && (p.pid === username || p === username))) return 'A';
+  if (b.some(p => p && (p.pid === username || p === username))) return 'B';
+  return null;
+}
+
 export function chatHandlers(io, socket) {
 
   socket.on('joinChat', ({ roomId, teamId, username }) => {
     if (!roomId) return;
+
+    // ensure we always join the room-level channel
     socket.join(`chat-${roomId}`);
-    if (teamId) socket.join(`chat-${roomId}-team-${teamId}`);
+
+    // fallback username to socket.username if not provided
+    const user = username || socket.username;
+
+    // if no teamId provided, try to infer from room membership
+    let team = teamId;
+    if (!team) {
+      const room = rooms[roomId] || {};
+      const inferred = inferTeamForUser(room, user);
+      if (inferred) team = inferred;
+    }
+
+    if (team) {
+      socket.join(`chat-${roomId}-team-${team}`);
+    }
 
     const room = rooms[roomId] || {};
     // if this is a team chat, emit only team history
-    if (teamId) {
-      const teamMessages = (room.teamChats && room.teamChats[teamId]) || [];
-      socket.emit('chatHistory', { scope: 'team', roomId, teamId, messages: teamMessages });
+    if (team) {
+      const teamMessages = (room.teamChats && room.teamChats[team]) || [];
+      socket.emit('chatHistory', { scope: 'team', roomId, teamId: team, messages: teamMessages });
       return;
     }
 
@@ -22,19 +48,30 @@ export function chatHandlers(io, socket) {
 
   socket.on('chatMessage', ({ roomId, teamId, username, text }) => {
     if (!roomId || !text) return;
-    const msg = { username, text, ts: Date.now() };
+
+    // fallback username to socket.username
+    const user = username || socket.username;
 
     // ensure room exists in shared store
     rooms[roomId] = rooms[roomId] || {};
     const room = rooms[roomId];
 
+    // If teamId not provided, try to infer from membership
+    let team = teamId;
+    if (!team) {
+      const inferred = inferTeamForUser(room, user);
+      if (inferred) team = inferred;
+    }
+
+    const msg = { username: user, text, ts: Date.now() };
+
     // if this is a team message, store only in teamChats
-    if (teamId) {
+    if (team) {
       room.teamChats = room.teamChats || {};
-      room.teamChats[teamId] = room.teamChats[teamId] || [];
-      room.teamChats[teamId].push(msg);
-      if (room.teamChats[teamId].length > 500) room.teamChats[teamId].shift();
-      io.to(`chat-${roomId}-team-${teamId}`).emit('chatMessage', { scope: 'team', roomId, teamId, message: msg });
+      room.teamChats[team] = room.teamChats[team] || [];
+      room.teamChats[team].push(msg);
+      if (room.teamChats[team].length > 500) room.teamChats[team].shift();
+      io.to(`chat-${roomId}-team-${team}`).emit('chatMessage', { scope: 'team', roomId, teamId: team, message: msg });
       return;
     }
 
