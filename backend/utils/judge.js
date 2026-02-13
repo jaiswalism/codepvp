@@ -118,6 +118,7 @@ export async function getVerdict(sourceCode, problemId, languageId) {
 async function checkStatus(tokens, result) {
     const tokenQuery = tokens.join(",");
     const baseUrl = process.env.JUDGE + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+    let ac = false;
     const options = {
     method: 'GET',
         headers: {
@@ -184,6 +185,7 @@ async function checkStatus(tokens, result) {
             });
 
             //Mark Points
+            ac = allPassed
 
 
         }
@@ -192,6 +194,9 @@ async function checkStatus(tokens, result) {
         console.log(err);
     }
     
-    return result
+    return {
+        result: result,
+        ac: ac
+    }
 
 }

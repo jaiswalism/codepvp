@@ -8,7 +8,7 @@ import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
 import { OrbitProgress } from 'react-loading-indicators';
-// import { markTeamSolved } from './Problemset';
+import { markTeamSolved } from './Problemset';
 import { useMatchTimer } from '../hooks/useMatchTimer';
 import ChatBox from './components/chat-box';
 import { LANGUAGES } from '../utils/languageTemplate'
@@ -290,6 +290,9 @@ const Problem: React.FC = () => {
         setTestResults([...data.result])
 
         // Mark Points here
+		if (data.ac) {
+			markTeamSolved(teamId!, problemId!, roomId!, currentUserName)
+		}
 
         setIsLoading(false);
 
