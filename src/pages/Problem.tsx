@@ -77,12 +77,12 @@ const Problem: React.FC = () => {
   const testResultsRef = useRef<HTMLDivElement | null>(null);
 
   // Generate unique localStorage key for this problem
-  const storageKey = `code_${roomId}_${problemId}_${teamId}`;
+  const storageKey = `code_${roomId}_${problemId}_${teamId}_${language}`;
 
   const navigate = useNavigate();
 
   const { timeLeft, isMatchOver } = useMatchTimer(roomId);
-  const hasAutoSubmitted = useRef(false);
+//   const hasAutoSubmitted = useRef(false);
 
   const handleLangChange = (event: any) => {
    setLanguage(event.target.value)
@@ -137,13 +137,13 @@ const Problem: React.FC = () => {
 
     // }
 
-  useEffect(() => {
-    if (isMatchOver && !hasAutoSubmitted.current) {
-      console.log("Match ended. Auto-submitting code...");
-      Run(); 
-      hasAutoSubmitted.current = true;
-    }
-  }, [isMatchOver]);
+//   useEffect(() => {
+//     if (isMatchOver && !hasAutoSubmitted.current) {
+//       console.log("Match ended. Auto-submitting code...");
+//       Run(); 
+//       hasAutoSubmitted.current = true;
+//     }
+//   }, [isMatchOver]);
 
 
   // --- Collaborative Editing: Prevent remote overwrite of local typing ---
