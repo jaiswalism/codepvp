@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 
-import serviceAccount from '../serviceAccountKey.json' with { type: 'json' };
+import serviceAccount from '../secrets/serviceAccountKey.json' with { type: 'json' };
 
 import 'dotenv/config';
 
