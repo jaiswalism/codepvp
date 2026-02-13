@@ -22,13 +22,13 @@ admin.initializeApp({
 });
 
 const languageIdMap = {
-  python: 71,
-  cpp: 12,
-  java: 25,
-  javascript: 26,
-  typescript: 45,
-  go: 22,
-  rust: 41
+ python: 71,
+ cpp: 54,
+ java: 62,
+ javascript: 63,
+ typescript: 74,
+ go: 60,
+ rust: 73
 }
 
 const db = admin.firestore();
