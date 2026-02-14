@@ -177,6 +177,61 @@ const Problem: React.FC = () => {
    sendChange(codeValue);
   }
 
+  // LOck Screen
+  useEffect(() => {
+    const enterFullscreen = async () => {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    };
+
+    enterFullscreen();
+  }, []);
+
+  useEffect(() => {
+      const handleFullscreenChange = () => {
+        if (!document.fullscreenElement) {
+          alert("You exited fullscreen. Match will end.");
+        }
+      };
+
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+      return () => {
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      };
+    }, [roomId, teamId]);
+
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        alert("You switched tabs. Match will end.");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [roomId, teamId]);
+
+  useEffect(() => {
+    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
+    const preventCopy = (e: ClipboardEvent) => e.preventDefault();
+
+    document.addEventListener("contextmenu", preventContextMenu);
+    document.addEventListener("copy", preventCopy);
+
+    return () => {
+      document.removeEventListener("contextmenu", preventContextMenu);
+      document.removeEventListener("copy", preventCopy);
+    };
+  }, []);
+
+
+
   // Fetch problem data
   useEffect(() => {
     if (!problemId) return;
