@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { setupSocket } from "./sockets/index.js";
-import 'dotenv/config';
+import "dotenv/config";
 import cors from "cors";
 import { rooms } from "./store/rooms.js";
 import { getVerdict } from "./utils/judge.js";
@@ -17,7 +17,7 @@ app.use(
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json());
@@ -30,9 +30,11 @@ app.post("/api/submit", async (req, res) => {
   const problemId = req.body.problemId;
   const language = req.body.language;
   const result = await getVerdict(sourceCode, problemId, language);
-  res.json(result)
-})
+  res.json(result);
+});
 
 setupSocket(io);
 
-server.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () =>
+  console.log(`🚀 Server running on port ${PORT}`),
+);
