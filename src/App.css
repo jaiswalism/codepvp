@@ -1,42 +1,23 @@
-/* #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* pixelpvp-split.css */
+
+.Resizer {
+    background: #1e293b; /* Tailwind slate-800 */
+    opacity: 1;
+    z-index: 1;
+    box-sizing: border-box;
+    background-clip: padding-box;
+    transition: background 0.2s ease;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.Resizer:hover {
+    background: #3b82f6; /* Tailwind blue-500 */
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.Resizer.horizontal {
+    height: 8px;
+    margin: -4px 0;
+    border-top: 4px solid rgba(255, 255, 255, 0);
+    border-bottom: 4px solid rgba(255, 255, 255, 0);
+    cursor: row-resize;
+    width: 100%;
 }
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-} */

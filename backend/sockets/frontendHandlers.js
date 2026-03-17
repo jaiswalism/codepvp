@@ -38,6 +38,8 @@ export function frontendHandlers(io, socket) {
         socket.frontendRoomId = roomId;
         frontendUserToRoom[username] = roomId;
 
+        console.log(room);
+
         socket.join(roomId);
 
         socket.emit("frontendRoomState", {
@@ -60,6 +62,7 @@ export function frontendHandlers(io, socket) {
 
         room.playerFiles[username][path] = code;
         room.updatedAt = Date.now();
+        console.log(room.playerFiles[username][path])
     });
 
     socket.on("frontendFilesSync", ({ roomId, username, files }) => {
@@ -78,6 +81,7 @@ export function frontendHandlers(io, socket) {
             ...sanitized,
         };
         room.updatedAt = Date.now();
+        console.log(room.playerFiles[username])
     });
 
     socket.on("disconnect", () => {
@@ -85,7 +89,6 @@ export function frontendHandlers(io, socket) {
         if (!username) return;
 
         removeFromQueue(username);
-    });
     });
 
     socket.on('getFrontendMatchDetails', ({ roomId }) => {
@@ -106,9 +109,6 @@ async function tryMatch(io) {
     const p4 = frontendQueue.shift();
 
     if (!p1 || !p2 || !p3 || !p4) return;
-
-    const frontendRoomData = createRoom(p1, p2, p3, p4);
-    const { roomId, endTime } = frontendRoomData;
 
     const time = 15;
     const durationMs = time * 60 * 1000;
@@ -133,9 +133,8 @@ async function tryMatch(io) {
     });
 }
 
-function createRoom(p1, p2, p3, p4) {
+function createRoom(p1, p2, p3, p4, time) {
     const roomId = generateRoomCode();
-    const time = 15;
     const startTime = Date.now();
     const endTime = startTime + time * 60 * 1000;
 
