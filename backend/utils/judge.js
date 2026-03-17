@@ -11,10 +11,32 @@ const languageIdMap = {
 }
 
 const problemsCollection = db.collection('ProblemsWithHTC');
+const debugProblemsCollection = db.collection('DebugProblems');
 
 export async function getVerdict(sourceCode, problemId, languageId) {
     const docRef = problemsCollection.doc(problemId);
-    const doc = await docRef.get();
+    let doc = await docRef.get();
+
+    if (!doc.exists) {
+        doc = await debugProblemsCollection.doc(problemId).get();
+    }
+
+    if (!doc.exists) {
+        return {
+            result: [
+                {
+                    input: "N/A",
+                    expected: "N/A",
+                    output: "",
+                    verdict: "Internal Error",
+                    hidden: false,
+                    error: true,
+                    errorMessage: "Problem not found.",
+                }
+            ],
+            ac: false,
+        };
+    }
 
     const problem = doc.data();
     const samples = problem.samples;

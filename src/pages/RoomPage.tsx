@@ -141,12 +141,26 @@ const RoomPage: React.FC = () => {
 
     if (!roomSettings) return; // Cannot start without room settings
 
+    const selectedMode = roomSettings.mode ?? 'normal';
+    const problemCollection = selectedMode === 'debug' ? 'DebugProblems' : 'ProblemsWithHTC';
+    const difficultyValue = selectedMode === 'debug'
+      ? roomSettings.difficulty.toLowerCase()
+      : roomSettings.difficulty;
+
     const q = query(
-      collection(db, "ProblemsWithHTC"),
-      where("difficulty", "==", roomSettings.difficulty),
+      collection(db, problemCollection),
+      where("difficulty", "==", difficultyValue),
     ); // Get questions with difficulty
 
-    const querySnapshot = await getDocs(q);
+    let querySnapshot = await getDocs(q);
+
+    if (selectedMode === 'debug' && querySnapshot.empty) {
+      const fallbackQuery = query(
+        collection(db, problemCollection),
+        where("difficulty", "==", roomSettings.difficulty),
+      );
+      querySnapshot = await getDocs(fallbackQuery);
+    }
     const allProblems = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       statusA: 0,
@@ -225,6 +239,7 @@ const RoomPage: React.FC = () => {
             </div>}
             {roomSettings && (
               <div className="mt-3 text-cyan-400 text-sm">
+                <p>Mode: <span className="text-white">{(roomSettings.mode ?? 'normal') === 'debug' ? 'Debug Battle' : 'Normal Battle'}</span></p>
                 <p>Difficulty: <span className="text-white">{roomSettings.difficulty}</span></p>
                 <p>Questions: <span className="text-white">{roomSettings.questions}</span></p>
                 <p>Time: <span className="text-white">{roomSettings.time} min</span></p>

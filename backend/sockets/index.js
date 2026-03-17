@@ -1,15 +1,10 @@
 import { roomHandlers } from "./roomHandlers.js";
 import { gameHandlers } from "./gameHandlers.js";
 import { editorHandlers } from "./editorHandlers.js";
-import { rooms, userToRoom } from "../store/rooms.js";
-<<<<<<< HEAD
-import { chatHandlers } from "./chatHandlers.js";
-
-export function setupSocket(io) {
-  io.on("connection", (socket) => {
-=======
+import { rooms, userToRoom, frontendUserToRoom } from "../store/rooms.js";
 import { chatHandlers } from './chatHandlers.js';
 import { matchmakingHandlers } from "./matchmakingHandlers.js";
+import { frontendHandlers } from "./frontendHandlers.js";
 
 export function setupSocket(io) {
   io.on("connection", (socket) => {
@@ -26,6 +21,7 @@ export function setupSocket(io) {
     editorHandlers(io, socket);
     chatHandlers(io, socket);
     matchmakingHandlers(io, socket);
+    frontendHandlers(io, socket);
 
     socket.on("disconnect", () => {
       const username = socket.username;
@@ -42,6 +38,7 @@ export function setupSocket(io) {
       room.teamB = room.teamB.filter((player) => player !== username);
 
       delete userToRoom[username]; // Cleanup after user leaves the room
+      delete frontendUserToRoom[username];
 
       const isEmpty = room.teamA.length === 0 && room.teamB.length === 0;
 
