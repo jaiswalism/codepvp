@@ -633,33 +633,33 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
         </div>
       </header>
 
-      {/* Main Content */}
-        <div className="flex flex-1 min-h-0">
-    {/* Left Panel */}
-    <div className="w-[45%] flex flex-col border-r border-gray-700/50">
-     {/* Tabs */}
-     <div className="shrink-0 flex border-b border-gray-700/50">
-      <button
-       onClick={() => setActiveTab('problem')}
-       className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
-        activeTab === 'problem'
-         ? 'text-cyan-400 border-b-2 border-cyan-400'
-         : 'text-gray-400 hover:text-cyan-300'
-       }`}
-      >
-       Problem Statement
-      </button>
-      <button
-       onClick={() => setActiveTab('chat')}
-       className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
-        activeTab === 'chat'
-         ? 'text-cyan-400 border-b-2 border-cyan-400'
-         : 'text-gray-400 hover:text-cyan-300'
-       }`}
-      >
-       Team Chat
-      </button>
-     </div>
+      {/* Main Content */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Panel */}
+        <div className="w-[45%] flex flex-col border-r border-gray-700/50">
+          {/* Tabs */}
+          <div className="shrink-0 flex border-b border-gray-700/50">
+            <button
+              onClick={() => setActiveTab('problem')}
+              className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
+                activeTab === 'problem'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-cyan-300'
+              }`}
+            >
+              Problem Statement
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
+                activeTab === 'chat'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-cyan-300'
+              }`}
+            >
+              Team Chat
+            </button>
+          </div>
 
      {/* Tab Content */}
      <div className="flex-1 min-h-0">
