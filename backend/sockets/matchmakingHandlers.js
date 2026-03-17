@@ -33,6 +33,7 @@ const durationMs = time * 60 * 1000;
   // Start timer immediately
   const timerId = setTimeout(() => {
     io.to(roomId).emit("matchEnd", { reason: "time_up" });
+    activeTimers.delete(roomId);
   }, durationMs);
 
   activeTimers.set(roomId, timerId);

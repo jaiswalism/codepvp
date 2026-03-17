@@ -11,13 +11,13 @@ function AddFileForm() {
     if (!name) return;
 
     const path = folder
-      ? `/${folder}/${name}.js`
-      : `/${name}.js`;
+      ? `/${folder}/${name}`
+      : `/${name}`;
 
     sandpack.updateFile(
       path,
-`export default function ${name}() {
-  return <div>${name}</div>;
+`export default function NewComponent() {
+  return <div>Hello</div>;
 }`
     );
 
