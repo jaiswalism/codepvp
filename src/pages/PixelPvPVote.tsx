@@ -228,25 +228,25 @@ export default function PixelPvPVote() {
       {/* FULLSCREEN PREVIEW (No Editor!) */}
       <div className="flex-1 w-full relative bg-white">
         
-        {/* We use a fallback just in case their files didn't save properly */}
-        <SandpackProvider
-          key={viewingPlayer} // CRITICAL: Forces a complete sandbox reboot for each player!
-          template="react"
-          theme={sandpackDark}
-          files={currentFiles || { "/App.js": "export default function App() { return <h1>No code submitted.</h1> }" }}
-          options={{ externalResources: ["https://cdn.tailwindcss.com"] }}
-        >
-          
-          {/* CRITICAL: Layout wrapper added back in */}
-          <SandpackLayout style={{ height: "100%", border: "none", borderRadius: 0 }}>
-            <SandpackPreview 
-              style={{ height: "100%" }} 
-              showOpenInCodeSandbox={false} 
-              showRefreshButton={true}
-            />
-          </SandpackLayout>
-          
-        </SandpackProvider>
+        {/* ADDED: absolute inset-0 wrapper to fix CSS percentage height resolution */}
+        <div className="absolute inset-0">
+          <SandpackProvider
+            key={viewingPlayer} 
+            template="react"
+            theme={sandpackDark}
+            files={currentFiles || { "/App.js": "export default function App() { return <h1>No code submitted.</h1> }" }}
+            options={{ externalResources: ["https://cdn.tailwindcss.com"] }}
+          >
+            <SandpackLayout style={{ height: "100dvh", border: "none", borderRadius: 0 }}>
+              <SandpackPreview 
+                style={{ height: "100%" }} 
+                showOpenInCodeSandbox={false} 
+                showRefreshButton={true}
+              />
+            </SandpackLayout>
+          </SandpackProvider>
+        </div>
+
       </div>
 
       {/* VOTING FOOTER (Floating Over the Bottom) */}
