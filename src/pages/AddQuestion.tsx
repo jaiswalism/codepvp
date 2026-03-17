@@ -130,6 +130,7 @@ const AddQuestion = () => {
             <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
               {samples.map((s, i) => (
                 <div key={i} className="flex flex-col gap-2 bg-white/5 p-3 rounded border border-amber-900/20">
+                  <p className="hidden" >{s.input}</p>
                   <textarea className="bg-black/40 border border-amber-900/20 p-2 rounded text-[15px] outline-none h-15 whitespace-pre-wrap focus:border-amber-500" placeholder="Sample Input" onChange={(e) => updateArrayField(setSamples, samples, i, 'input', e.target.value)} />
                   <textarea className="bg-black/40 border border-amber-900/20 p-2 rounded text-[15px] outline-none h-15 text-amber-200 whitespace-pre-wrap focus:border-amber-500" placeholder="Expected Output" onChange={(e) => updateArrayField(setSamples, samples, i, 'output', e.target.value)} />
                 </div>
@@ -148,6 +149,7 @@ const AddQuestion = () => {
             <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
               {hiddenTests.map((s, i) => (
                 <div key={i} className="flex flex-col gap-2 bg-white/5 p-3 rounded border border-rose-900/20">
+                  <p className="hidden" >{s.input}</p>
                   <textarea className="bg-black/40 border border-rose-900/20 p-2 rounded text-[15px] outline-none h-15 whitespace-pre-wrap focus:border-rose-500" placeholder="Hidden Input" onChange={(e) => updateArrayField(setHiddenTests, hiddenTests, i, 'input', e.target.value)} />
                   <textarea className="bg-black/40 border border-rose-900/20 p-2 rounded text-[15px] outline-none h-15 text-rose-200 whitespace-pre-wrap focus:border-rose-500" placeholder="Hidden Output" onChange={(e) => updateArrayField(setHiddenTests, hiddenTests, i, 'output', e.target.value)} />
                 </div>
