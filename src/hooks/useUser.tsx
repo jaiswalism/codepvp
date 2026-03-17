@@ -1,13 +1,8 @@
-/*
------ useUser hook for getting userContext -----
-*/
-
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { createContext, useContext, useState, useEffect } from "react";
-import { auth, db } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig" // Ensure this points to your firebase config
 import { doc, getDoc } from "firebase/firestore";
 
-// User data from Firestore users collection
 export interface UserData {
   uid: string;
   email: string | null;
@@ -17,11 +12,11 @@ export interface UserData {
   bio: string;
   avatar: string;
   completedOnboarding: boolean;
-  rating?: number; // User rating (Beginner: 0-199, Medium: 200-399, Advanced: 400-599, Expert: 600+)
-  questionsSolved?: number; // Total number of questions solved
+  role?: string; // Added for Admin access
+  rating?: number;
+  questionsSolved?: number;
 }
 
-// Contains user and loading for auth
 type UserContextType = {
   user: User | null;
   userData: UserData | null;
@@ -39,17 +34,13 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Getting auth and user data from Firestore
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      
       if (firebaseUser) {
-        // Fetch user data from Firestore users collection
         try {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDocSnap = await getDoc(userDocRef);
-          
           if (userDocSnap.exists()) {
             setUserData(userDocSnap.data() as UserData);
           } else {
@@ -62,10 +53,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setUserData(null);
       }
-      
-      setLoading(false); // Once auth is successful set loading to false
+      setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
