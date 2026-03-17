@@ -4,6 +4,7 @@ import { editorHandlers } from "./editorHandlers.js";
 import { rooms, userToRoom } from "../store/rooms.js";
 import { chatHandlers } from './chatHandlers.js';
 import { matchmakingHandlers } from "./matchmakingHandlers.js";
+import { frontendHandlers } from "./frontendHandlers.js";
 
 export function setupSocket(io) {
   io.on("connection", (socket) => {
@@ -19,6 +20,7 @@ export function setupSocket(io) {
     editorHandlers(io, socket);
     chatHandlers(io, socket);
     matchmakingHandlers(io, socket);
+    frontendHandlers(io, socket);
 
     socket.on("disconnect", () => {
       const username = socket.username;

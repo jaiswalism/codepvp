@@ -39,7 +39,7 @@ function App() {
           <Route path="room/:roomId/results" element={<GameFinishPage />} />
           <Route path="dashboard" element={ <Dashboard /> } />
           <Route path="PixelPvP" element={ <FrontendQueue /> } />
-          <Route path="PixelPvP/room" element={ <PixelPvP /> } />
+          <Route path="PixelPvP/room/:roomId" element={ <PixelPvP /> } />
         </Route>
       </Routes>
     </BrowserRouter>

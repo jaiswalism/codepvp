@@ -6,6 +6,9 @@ import {
   SandpackFileExplorer,
 } from "@codesandbox/sandpack-react";
 
+import { useParams } from "react-router-dom";
+import { useFrontendTimer } from "../hooks/useFrontendTimer";
+
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 
 
@@ -14,6 +17,9 @@ import AddFileButton from "./components/AddFileButton";
 import { sandpackDark } from "@codesandbox/sandpack-themes";
 
 const PixelPvP = () => {
+
+  const { roomId } = useParams();
+  const { timeLeft, isMatchOver } = useFrontendTimer(roomId);
 
   return (
     <div className="h-screen w-full flex flex-col bg-[#020617]">
@@ -28,7 +34,14 @@ const PixelPvP = () => {
 
         {/* Top action bar */}
         <div className="p-2 border-b border-slate-800">
+          <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 px-4 py-1.5 rounded-md">
+            {!isMatchOver && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>}
+            <span className="text-white font-mono text-lg font-bold tracking-wider">
+              {timeLeft}
+            </span>
+          </div>
           <AddFileButton />
+
         </div>
 
         {/* IDE area */}
