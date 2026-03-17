@@ -1,4 +1,4 @@
-import { doc, updateDoc, increment } from "firebase/firestore";
+import { doc, updateDoc, increment, getDoc } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
 /**
@@ -88,6 +88,33 @@ export async function setUserStats(
     console.log(`User stats set to: ${rating} rating, ${questionsSolved} questions`);
   } catch (error) {
     console.error("Error setting user stats:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get user statistics (rating and questions solved)
+ * @param userId - User's Firebase UID
+ * @returns Object with rating and questionsSolved
+ */
+export async function getUserStats(
+  userId: string
+): Promise<{ rating: number; questionsSolved: number }> {
+  try {
+    const userDocRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userDocRef);
+    
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      return {
+        rating: data.rating || 0,
+        questionsSolved: data.questionsSolved || 0,
+      };
+    } else {
+      return { rating: 0, questionsSolved: 0 };
+    }
+  } catch (error) {
+    console.error("Error getting user stats:", error);
     throw error;
   }
 }

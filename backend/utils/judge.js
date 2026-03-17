@@ -1,25 +1,4 @@
-import admin from 'firebase-admin';
-import fs from "fs";    
-
-import 'dotenv/config';
-
-let serviceAccount;
-
-if (process.env.K_SERVICE) {
-  // Running in Cloud Run
-  serviceAccount = JSON.parse(
-    fs.readFileSync("/secrets/serviceAccountKey", "utf8")
-  );
-} else {
-  // Running locally
-  serviceAccount = JSON.parse(
-    fs.readFileSync("./secrets/serviceAccountKey.json", "utf8")
-  );
-}
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+import { db, admin } from "../firebaseAdmin.js";
 
 const languageIdMap = {
  python: 71,
@@ -31,7 +10,6 @@ const languageIdMap = {
  rust: 73
 }
 
-const db = admin.firestore();
 const problemsCollection = db.collection('ProblemsWithHTC');
 
 export async function getVerdict(sourceCode, problemId, languageId) {
