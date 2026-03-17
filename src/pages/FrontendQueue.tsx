@@ -4,37 +4,41 @@ import { useUser } from "../hooks/useUser";
 import { socket } from "../utils/socket";
 import LoadingScreen from "./components/LoadingScreen";
 
-type FrontendMatchFoundPayload = {
-    roomId: string;
-    endTime: number;
-};
+export default function FrontendQueue(){
 
-export default function FrontendQueue() {
     const navigate = useNavigate();
-    const { userData } = useUser();
-    const username = userData?.username;
+
+    const { user, loading } = useUser();
+    const currentUserName = user?.displayName || user?.email || "Anon";
 
     useEffect(() => {
-        if (!username) return;
+        if(!user && !loading) navigate("/login");
+    }, [user, loading, navigate]);
 
-        socket.emit("registerUser", { username });
-        socket.emit("joinFrontendQueue", { username });
+    useEffect(() => {
+        if (currentUserName && currentUserName !== "Anon") {
+            socket.emit("registerUser", { username: currentUserName });
+            socket.emit("joinFrontendQueue", { username: currentUserName });
+        }
+    }, [currentUserName]);
 
-        const handleMatchFound = ({ roomId }: FrontendMatchFoundPayload) => {
-            navigate(`/PixelPvP/room?roomId=${roomId}`);
+    useEffect(() => {
+        const handleMatchFound = (data: any) => {
+            const { roomId, endTime } = data;
+            navigate(`/PixelPvP/room/${roomId}`, { state: { endTime } });
         };
 
         socket.on("frontendMatchFound", handleMatchFound);
 
+        // ALWAYS clean up socket listeners in React, otherwise you get duplicate navigations
         return () => {
-            socket.emit("leaveFrontendQueue", { username });
             socket.off("frontendMatchFound", handleMatchFound);
         };
-    }, [navigate, username]);
+    }, [navigate]);
 
-    return (
+    return(
         <div>
-            <LoadingScreen message="Finding Players" />
+            <LoadingScreen message="Searchin for players" />
         </div>
-    );
+    )
 }
