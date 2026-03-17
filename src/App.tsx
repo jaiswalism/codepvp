@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dahboard"
 import Onboarding from "./pages/onboarding"
 import PixelPvP from "./pages/PixelPvP"
 import FrontendQueue from "./pages/FrontendQueue"
+import PixelPvPVote from "./pages/PixelPvPVote"
 import './App.css'
 import { UserProvider } from "./hooks/useUser"
 
@@ -40,6 +41,7 @@ function App() {
           <Route path="dashboard" element={ <Dashboard /> } />
           <Route path="PixelPvP" element={ <FrontendQueue /> } />
           <Route path="PixelPvP/room/:roomId" element={ <PixelPvP /> } />
+          <Route path="PixelPvP/vote/:roomId" element={ <PixelPvPVote /> } />
         </Route>
       </Routes>
     </BrowserRouter>
