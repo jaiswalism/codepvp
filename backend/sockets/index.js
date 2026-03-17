@@ -15,7 +15,6 @@ export function setupSocket(io) {
       console.log("Registered:", username);
     });
 
->>>>>>> de22bd4fc2af84372a6bab3750c54fe509612323
     roomHandlers(io, socket);
     gameHandlers(io, socket);
     editorHandlers(io, socket);
