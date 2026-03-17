@@ -1,7 +1,7 @@
 import { roomHandlers } from "./roomHandlers.js";
 import { gameHandlers } from "./gameHandlers.js";
 import { editorHandlers } from "./editorHandlers.js";
-import { rooms, userToRoom } from "../store/rooms.js";
+import { rooms, userToRoom, frontendUserToRoom } from "../store/rooms.js";
 import { chatHandlers } from './chatHandlers.js';
 import { matchmakingHandlers } from "./matchmakingHandlers.js";
 import { frontendHandlers } from "./frontendHandlers.js";
@@ -37,6 +37,7 @@ export function setupSocket(io) {
       room.teamB = room.teamB.filter(player => player !== username);
 
       delete userToRoom[username]; // Cleanup after user leaves the room
+      delete frontendUserToRoom[username];
 
       const isEmpty = room.teamA.length === 0 && room.teamB.length === 0;
 

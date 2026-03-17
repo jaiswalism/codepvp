@@ -3,4 +3,5 @@ export const userToRoom = {}; // Maps user to roomId
 export const activeTimers = new Map();
 export const queue = [];
 export const frontendQueue = [];
-export const frontendRooms = {};
+export const frontendRooms = {}; // Stores rooms for frontend display (includes 'waiting', 'in-progress', and 'completed')
+export const frontendUserToRoom = {}; // Maps frontend player to frontend roomId

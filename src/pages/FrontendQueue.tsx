@@ -1,8 +1,13 @@
-import LoadingScreen from "./components/LoadingScreen"
-import { useUser } from "../hooks/useUser"
-import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useUser } from "../hooks/useUser";
 import { socket } from "../utils/socket";
+import LoadingScreen from "./components/LoadingScreen";
+
+type FrontendMatchFoundPayload = {
+    roomId: string;
+    endTime: number;
+};
 
 export default function FrontendQueue(){
 
