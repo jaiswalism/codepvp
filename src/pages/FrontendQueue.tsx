@@ -4,11 +4,6 @@ import { useUser } from "../hooks/useUser";
 import { socket } from "../utils/socket";
 import LoadingScreen from "./components/LoadingScreen";
 
-type FrontendMatchFoundPayload = {
-    roomId: string;
-    endTime: number;
-};
-
 export default function FrontendQueue(){
 
     const navigate = useNavigate();
