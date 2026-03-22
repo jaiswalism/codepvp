@@ -15,6 +15,7 @@ interface activeRoom {
 }
 
 export interface RoomSettings {
+  mode: 'normal' | 'debug';
   difficulty: 'Easy' | 'Medium' | 'Hard';
   size: '1v1' | '2v2' | '3v3' | '4v4';
   questions: number;
@@ -31,6 +32,7 @@ const MultiPlayer: React.FC = () => {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [roomSettings, setRoomSettings] = useState<RoomSettings>({
+    mode: 'normal',
     difficulty: 'Easy',
     size: '2v2',
     questions: 4,
@@ -283,6 +285,29 @@ const MultiPlayer: React.FC = () => {
                 >
                   &larr; Back
                 </button>
+              </div>
+
+              {/* Mode Setting */}
+              <div className="flex flex-col gap-2">
+                <label className="text-cyan-400 font-medium">Mode</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: 'normal', label: 'Normal Battle' },
+                    { value: 'debug', label: 'Debug Battle' },
+                  ] as const).map((modeOption) => (
+                    <button
+                      key={modeOption.value}
+                      onClick={() => handleSettingChange('mode', modeOption.value)}
+                      className={`font-bold rounded-lg py-2 text-center transition-all duration-300 ${
+                        roomSettings.mode === modeOption.value
+                          ? 'bg-cyan-300 text-gray-900 shadow-[0_0_10px_rgba(56,189,248,0.5)]'
+                          : 'bg-gray-800/60 text-cyan-300 border border-cyan-400/20 hover:bg-cyan-900/40'
+                      }`}
+                    >
+                      {modeOption.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Difficulty Setting */}

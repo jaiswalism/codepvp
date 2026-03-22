@@ -5,11 +5,13 @@ export function gameHandlers(io, socket) {
     const room = rooms[roomId];
     if (!room || room.owner !== username) return;
 
-    const allReady = [...room.teamA, ...room.teamB].filter(Boolean).every(p => p.ready);
+    const allReady = [...room.teamA, ...room.teamB]
+      .filter(Boolean)
+      .every((p) => p.ready);
     if (!allReady) return;
 
     room.status = "in-progress"; // CHange room status so doesnt show in active rooms list
-    room.duration = time*60; // Time recieved is in minutes
+    room.duration = time * 60; // Time recieved is in minutes
     room.startTime = Date.now();
     room.endTime = room.startTime + room.duration * 1000;
 
@@ -57,12 +59,11 @@ export function gameHandlers(io, socket) {
 
     if (!room) return;
 
-    const allPlayers = [...room.teamA, ...room.teamB].filter(p => p !== null);
-    allPlayers.forEach(p => {
+    const allPlayers = [...room.teamA, ...room.teamB].filter((p) => p !== null);
+    allPlayers.forEach((p) => {
       delete userToRoom[p.pid];
-    })
+    });
 
     delete rooms[roomId];
-
-  })
+  });
 }

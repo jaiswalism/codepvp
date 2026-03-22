@@ -15,23 +15,24 @@ import { LANGUAGES } from '../utils/languageTemplate'
 
 // Problem Data schema stored in firebase
 export interface ProblemData {
-  constraints: string;
+  constraints?: string;
   difficulty: string;
   hiddenTestCases: {
     input: string;
     output: string;
   }[];
-  inputFormat: string;
-  outputFormat: string;
+  inputFormat?: string;
+  outputFormat?: string;
   samples: {
     input: string;
     output: string;
   }[];
   statement: string;
-  tags: string[];
+  tags?: string[];
   title: string;
   statusA: number;
   statusB: number;
+  buggyTemplateByLanguage?: Record<string, string>;
 }
 
 // Testcase interface for validating test cases
@@ -57,6 +58,7 @@ const languageIdMap = {
 } as const;
 
 type Language = keyof typeof languageIdMap;
+const DEBUG_LANGUAGE: Language = "cpp";
 
 const Problem: React.FC = () => {
 
@@ -67,6 +69,7 @@ const Problem: React.FC = () => {
 //  const [passData, setPassData] = useState<gameRes | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [language, setLanguage] = useState<Language>("python");
+  const [roomMode, setRoomMode] = useState<'normal' | 'debug'>('normal');
 
   const { user } = useUser();
   const currentUserName = user?.displayName || user?.email || "Anon";
@@ -86,6 +89,7 @@ const Problem: React.FC = () => {
 //   const hasAutoSubmitted = useRef(false);
 
   	const handleLangChange = (event: any) => {
+      if (roomMode === 'debug') return;
 		const newLanguage = event.target.value as Language;
    		setLanguage(newLanguage)
 
@@ -96,7 +100,7 @@ const Problem: React.FC = () => {
 		if (savedCode) {
 			setCode(savedCode);
 		} else {
-			setCode(LANGUAGES[language].template)
+      setCode(LANGUAGES[newLanguage].template)
 		}
   	}
 
@@ -234,17 +238,36 @@ const Problem: React.FC = () => {
 
   // Fetch problem data
   useEffect(() => {
-    if (!problemId) return;
-    getDocumentData("ProblemsWithHTC", problemId);
-    
-    // Load saved code from localStorage on mount
-    const savedCode = localStorage.getItem(storageKey);
-    if (savedCode) {
-      setCode(savedCode);
-    } else {
-		setCode(LANGUAGES[language].template)
-	}
-  }, [problemId, language]);
+    if (!roomId || !problemId) return;
+
+    const loadProblem = async () => {
+      const roomRef = doc(db, "rooms", roomId);
+      const roomSnap = await getDoc(roomRef);
+      const mode = roomSnap.exists() && roomSnap.data().mode === 'debug' ? 'debug' : 'normal';
+      setRoomMode(mode);
+
+      const effectiveLanguage: Language = mode === 'debug' ? DEBUG_LANGUAGE : language;
+      if (mode === 'debug' && language !== DEBUG_LANGUAGE) {
+        setLanguage(DEBUG_LANGUAGE);
+      }
+
+      const collectionName = mode === 'debug' ? 'DebugProblems' : 'ProblemsWithHTC';
+      const problemDoc = await getDocumentData(collectionName, problemId);
+
+      const modeStorageKey = `code_${roomId}_${problemId}_${teamId}_${effectiveLanguage}`;
+      const savedCode = localStorage.getItem(modeStorageKey);
+      if (savedCode) {
+        setCode(savedCode);
+      } else {
+        const debugStarter = mode === 'debug'
+          ? problemDoc?.buggyTemplateByLanguage?.[DEBUG_LANGUAGE]
+          : undefined;
+        setCode(debugStarter || LANGUAGES[effectiveLanguage].template);
+      }
+    };
+
+    loadProblem();
+  }, [roomId, problemId, teamId, language]);
 
   // Socket Connection
   useEffect(() => {
@@ -300,10 +323,12 @@ const Problem: React.FC = () => {
     const docRef = doc(db, collectionName, documentId);
     const docSnap = await getDoc(docRef);
     if(docSnap.exists()) {
-      setData(docSnap.data() as ProblemData);
-      console.log(docSnap.data());
+      const problemData = docSnap.data() as ProblemData;
+      setData(problemData);
+      return problemData;
     } else {
       console.log("GAY"); // This should not be removed from the code(or else)
+      return null;
     }
   }
 
@@ -333,7 +358,7 @@ const Problem: React.FC = () => {
           body: JSON.stringify({
             sourceCode: normalizedCode,
             problemId: problemId,
-            language: language,
+            language: roomMode === 'debug' ? DEBUG_LANGUAGE : language,
           })
         })
 
@@ -608,33 +633,33 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
         </div>
       </header>
 
-      {/* Main Content */}
-        <div className="flex flex-1 min-h-0">
-    {/* Left Panel */}
-    <div className="w-[45%] flex flex-col border-r border-gray-700/50">
-     {/* Tabs */}
-     <div className="shrink-0 flex border-b border-gray-700/50">
-      <button
-       onClick={() => setActiveTab('problem')}
-       className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
-        activeTab === 'problem'
-         ? 'text-cyan-400 border-b-2 border-cyan-400'
-         : 'text-gray-400 hover:text-cyan-300'
-       }`}
-      >
-       Problem Statement
-      </button>
-      <button
-       onClick={() => setActiveTab('chat')}
-       className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
-        activeTab === 'chat'
-         ? 'text-cyan-400 border-b-2 border-cyan-400'
-         : 'text-gray-400 hover:text-cyan-300'
-       }`}
-      >
-       Team Chat
-      </button>
-     </div>
+      {/* Main Content */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Panel */}
+        <div className="w-[45%] flex flex-col border-r border-gray-700/50">
+          {/* Tabs */}
+          <div className="shrink-0 flex border-b border-gray-700/50">
+            <button
+              onClick={() => setActiveTab('problem')}
+              className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
+                activeTab === 'problem'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-cyan-300'
+              }`}
+            >
+              Problem Statement
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
+                activeTab === 'chat'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  : 'text-gray-400 hover:text-cyan-300'
+              }`}
+            >
+              Team Chat
+            </button>
+          </div>
 
      {/* Tab Content */}
      <div className="flex-1 min-h-0">
@@ -646,11 +671,11 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
         </p>
         <h3 className="text-xl font-bold text-white mb-4">Input Format</h3>
         <p className="text-gray-300 mb-6">
-         { data?.inputFormat }
+         { data?.inputFormat || "Use the input shown in examples." }
         </p>
         <h3 className="text-xl font-bold text-white mb-4">Output Format</h3>
         <p className="text-gray-300 mb-6">
-         { data?.outputFormat }
+         { data?.outputFormat || "Print the corrected output for given input." }
         </p>
          {data?.samples.map((tc, i) => (
            <div key={i}>
@@ -666,7 +691,7 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
 
         <h3 className="text-xl font-bold text-white mb-4">Constraints</h3>
         <ul className="list-disc list-inside text-gray-300 space-y-2">
-         {data?.constraints}
+         {data?.constraints || "Follow constraints implied by statement and samples."}
         </ul>
        </div>
       ) : (
@@ -681,20 +706,22 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
     <div className="flex-1 flex flex-col">
      {/* Language Select and Editor */}
      <div className="flex-1 min-h-0">
-      <select 
-       className="bg-gray-800 text-gray-300 p-1.5 rounded border border-gray-700 m-2" 
-       value={language} 
-       onChange={handleLangChange}
-      >
-       <option value="python">Python</option>
-       <option value="cpp">C++</option>
-       <option value="java">Java</option>
-       <option value="javascript">JavaScript</option>
-       <option value="typescript">TypeScript</option>
-       <option value="go">Golang</option>
-       <option value="rust">Rust</option>
-      </select>
-      <div className="h-[calc(100%-48px)]">
+      {roomMode !== 'debug' && (
+       <select 
+        className="bg-gray-800 text-gray-300 p-1.5 rounded border border-gray-700 m-2" 
+        value={language} 
+        onChange={handleLangChange}
+       >
+        <option value="python">Python</option>
+        <option value="cpp">C++</option>
+        <option value="java">Java</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="go">Golang</option>
+        <option value="rust">Rust</option>
+       </select>
+      )}
+      <div className={roomMode === 'debug' ? 'h-full' : 'h-[calc(100%-48px)]'}>
        <Editor 
         theme="vs-dark" 
         language={language} 
