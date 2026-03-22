@@ -14,10 +14,12 @@
   "type": "module",
   "dependencies": {
     "cheerio": "^1.1.2",
+    "cloudinary": "^2.9.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
-    "firebase-admin": "^13.4.0",
+    "express-fileupload": "^1.5.2",
+    "firebase-admin": "^13.7.0",
     "nodemon": "^3.1.10",
     "puppeteer": "^24.16.2",
     "puppeteer-extra": "^3.3.6",

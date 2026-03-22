@@ -114,10 +114,29 @@ const Onboarding = () => {
     try {
       const user = auth.currentUser;
       if (user) {
+
+        let avatarUrl = selectedAvatar;
+
+        if (customAvatar) {
+          const formData = new FormData();
+          formData.append('avatar', customAvatar);
+
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/upload-avatar`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!res.ok) {
+            throw new Error('Avatar upload failed');
+          }
+
+          const data = await res.json();
+          avatarUrl = data.url; // THIS is your real Cloudinary URL
+        }
         // Update user profile in Firebase Auth
         await updateProfile(user, {
           displayName: username,
-          photoURL: selectedAvatar,
+          photoURL: avatarUrl,
         });
 
         // Map skill level to initial rating
@@ -139,7 +158,7 @@ const Onboarding = () => {
           languages: selectedLanguages,
           skillLevel,
           bio,
-          avatar: selectedAvatar,
+          avatar: avatarUrl,
           completedOnboarding: true,
           rating: getInitialRating(skillLevel), // Set rating based on skill level
           questionsSolved: 0, // Start with 0 questions solved
