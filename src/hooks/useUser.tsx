@@ -1,7 +1,7 @@
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../../firebaseConfig" // Ensure this points to your firebase config
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 
 export interface UserData {
   uid: string;
@@ -35,28 +35,42 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        try {
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            setUserData(userDocSnap.data() as UserData);
+  let unsubscribeSnapshot: (() => void) | null = null;
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    setUser(firebaseUser);
+
+    if (firebaseUser) {
+      const userDocRef = doc(db, "users", firebaseUser.uid);
+
+      // 🔥 REAL-TIME LISTENER
+      unsubscribeSnapshot = onSnapshot(
+        userDocRef,
+        (docSnap) => {
+          if (docSnap.exists()) {
+            setUserData(docSnap.data() as UserData);
           } else {
             setUserData(null);
           }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
+          setLoading(false);
+        },
+        (error) => {
+          console.error("Error listening to user data:", error);
           setUserData(null);
+          setLoading(false);
         }
-      } else {
-        setUserData(null);
-      }
+      );
+    } else {
+      setUserData(null);
       setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+    }
+  });
+
+  return () => {
+    unsubscribeAuth();
+    if (unsubscribeSnapshot) unsubscribeSnapshot();
+  };
+}, []);
 
   return (
     <UserContext.Provider value={{ user, userData, loading }}>
