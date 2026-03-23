@@ -16,12 +16,16 @@ import Onboarding from "./pages/onboarding"
 import PixelPvP from "./pages/PixelPvP"
 import FrontendQueue from "./pages/FrontendQueue"
 import PixelPvPVote from "./pages/PixelPvPVote"
+import TournamentList from "./pages/TournamentList"
+import TournamentLobby from "./pages/TournamentLobby"
 import './App.css'
 import { UserProvider } from "./hooks/useUser"
 
 // ADMIN COMPONENTS
 import AdminRoute from "./pages/components/AdminRoute"
 import AdminAddQuestion from "./pages/AddQuestion"
+import AddTournament from "./pages/AddTournament"
+import EditTournament from "./pages/EditTournament"
 
 function App() {
   return (
@@ -44,6 +48,9 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="PixelPvP" element={<FrontendQueue />} />
             <Route path="PixelPvP/room/:roomId" element={<PixelPvP />} />
+            <Route path="PixelPvP/vote/:roomId" element={ <PixelPvPVote /> } />
+            <Route path="tournaments" element={<TournamentList />} />
+            <Route path="tournaments/:tournamentId" element={<TournamentLobby />} />
 
             {/* PROTECTED ADMIN ROUTE */}
             <Route 
@@ -54,7 +61,25 @@ function App() {
                 </AdminRoute>
               } 
             />
-          <Route path="PixelPvP/vote/:roomId" element={ <PixelPvPVote /> } />
+
+            <Route 
+              path="admin/add-tournament" 
+              element={
+                <AdminRoute>
+                  <AddTournament />
+                </AdminRoute>
+              } 
+            />
+
+            <Route 
+              path="admin/manage-tournament/:id" 
+              element={
+                <AdminRoute>
+                  <EditTournament />
+                </AdminRoute>
+              } 
+            />
+
           </Route>
           
           <Route path="*" element={<Navigate to="/404" replace />} />

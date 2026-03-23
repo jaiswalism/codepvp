@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getDoc, doc } from 'firebase/firestore';
+import { getDoc, doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useUser } from '../hooks/useUser';
 import type { ProblemData } from './Problem';
@@ -8,6 +8,8 @@ import { updateUserRating } from '../utils/updateUserStats';
 
 // Schema for firebase data
 export interface gameRes {
+    tournamentId?: string; // Added for tournament logic
+    matchId?: string;      // Added for tournament logic
     winningTeam: string;
     teamA: {
         name: string;
@@ -32,7 +34,7 @@ export interface gameRes {
     allProblems: ProblemData[];
 }
 
-// --- Sub-components for better structure ---
+// --- Sub-components ---
 
 const ResultBanner: React.FC<{ didWin: boolean; ratingChange: number | null }> = ({ didWin, ratingChange }) => {
   return (
@@ -47,7 +49,6 @@ const ResultBanner: React.FC<{ didWin: boolean; ratingChange: number | null }> =
         </h1>
       )}
       
-      {/* Rating Display */}
       {ratingChange !== null && (
         <div className={`text-2xl font-mono font-bold mt-2 animate-bounce ${ratingChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {ratingChange >= 0 ? `+${ratingChange}` : ratingChange} Rating
@@ -74,20 +75,17 @@ const TeamCard: React.FC<TeamCardProps> = ({ teamData, allProblems }) => {
         <p className="text-gray-400">Total Points</p>
       </div>
       
-      {/* Player Stats */}
       <div className="mb-4">
         {teamData.players.map(player => (
           <div key={player.pid} className="flex justify-between items-center bg-gray-800/50 p-2 rounded mb-2">
             <span className="text-sm truncate text-gray-300 w-2/5">{player.pid}</span>
             <div className="text-right">
               <p className="font-bold text-white">{player.points} pts</p>
-              {/* <p className="text-xs text-gray-400">{player.problemsSolved} solved</p> */}
             </div>
           </div>
         ))}
       </div>
       
-      {/* Solved Problems */}
       <div>
         <h4 className="text-lg font-semibold text-gray-300 mb-2 text-center border-t border-gray-700 pt-3">Problems Solved</h4>
         <ul className="space-y-1">
@@ -109,7 +107,6 @@ const TeamCard: React.FC<TeamCardProps> = ({ teamData, allProblems }) => {
   );
 };
 
-
 // --- Main GameFinish Component ---
 
 const GameFinishPage: React.FC = () => {
@@ -118,18 +115,22 @@ const GameFinishPage: React.FC = () => {
   const [ratingChange, setRatingChange] = useState<number | null>(null);
 
   const { roomId } = useParams();
-
   const { user } = useUser();
-
   const navigate = useNavigate();
+  
+  // Guard to prevent double execution of tournament updates
+  const hasProcessedTournament = useRef(false);
 
   useEffect(() => {
     const fetchData = async () => {
-      const docRef = doc(db, "RoomSet", roomId!);
-      const docSnap = await getDoc(docRef);
-      const data = docSnap.data() as gameRes;
+      if (!roomId || !user) return;
 
-      const currentUserName = user?.displayName || user?.email || "Anon";
+      const docRef = doc(db, "RoomSet", roomId);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return;
+      
+      const data = docSnap.data() as gameRes;
+      const currentUserName = user.displayName || user.email || "Anon";
 
       const winningTeam =
       data.teamA.score > data.teamB.score
@@ -143,35 +144,77 @@ const GameFinishPage: React.FC = () => {
       const inTeamA = data?.teamA.players.some(p => p.pid === currentUserName);
       const inTeamB = data?.teamB.players.some(p => p.pid === currentUserName);
 
-
       if (inTeamA) setMyTeam("Team A");
       else if (inTeamB) setMyTeam("Team B");
 
-      const teamPlayers = inTeamA ?
-        data?.teamA.players :
-        data?.teamB.players;
-
-      const userPlayer = teamPlayers?.find(
-        (player) => player.pid === currentUserName
-      );
+      const teamPlayers = inTeamA ? data?.teamA.players : data?.teamB.players;
+      const userPlayer = teamPlayers?.find((player) => player.pid === currentUserName);
       
       const userPoints = userPlayer?.points ?? 0;
       const winningBonus = inTeamA ?
         ((data.teamA.score > data.teamB.score) ? 50 : -50) :
         ((data.teamB.score > data.teamA.score) ? 50 : -50);
       
-      console.log(userPoints+winningBonus);
+      setRatingChange(userPoints + winningBonus);
+      updateUserRating(user.uid, userPoints + winningBonus);
 
-      setRatingChange(userPoints+winningBonus);
-      
-      updateUserRating(user?.uid || "", userPoints+winningBonus);
+      // ==========================================
+      // TOURNAMENT ELIMINATION & SCORING LOGIC
+      // ==========================================
+      if (data.tournamentId && data.matchId && !hasProcessedTournament.current) {
+        hasProcessedTournament.current = true; // Lock execution
 
-      
+        try {
+          const matchRef = doc(db, `Tournaments/${data.tournamentId}/Matches`, data.matchId);
+          const matchSnap = await getDoc(matchRef);
+
+          // Only proceed if match isn't already marked completed by the other player
+          if (matchSnap.exists() && matchSnap.data().status !== 'completed') {
+            const matchData = matchSnap.data();
+            
+            let winnerUid: string | null = null;
+            let loserUid: string | null = null;
+
+            if (winningTeam === "Team A") {
+              winnerUid = matchData.p1.uid;
+              loserUid = matchData.p2?.uid || null;
+            } else if (winningTeam === "Team B") {
+              winnerUid = matchData.p2?.uid || null;
+              loserUid = matchData.p1.uid;
+            }
+
+            // 1. Mark Match as Completed (Fixes the infinite loop bug)
+            await updateDoc(matchRef, {
+              status: 'completed',
+              winner: winnerUid,
+              loser: loserUid
+            });
+
+            // 2. Update Tournament Document (Knockout and Scores)
+            const tourneyRef = doc(db, "Tournaments", data.tournamentId);
+            const updates: any = {};
+
+            if (loserUid) {
+              updates.eliminated = arrayUnion(loserUid);
+            }
+            if (winnerUid) {
+              // Add the user's game points to their total tournament score
+              const pointsEarned = winningTeam === "Team A" ? data.teamA.score : data.teamB.score;
+              updates[`scores.${winnerUid}`] = increment(pointsEarned);
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await updateDoc(tourneyRef, updates);
+            }
+          }
+        } catch (err) {
+          console.error("Error updating tournament status:", err);
+        }
+      }
     }
 
     fetchData();
-  },[roomId, user])
-
+  }, [roomId, user]);
 
   return (
     <div className='flex h-dvh justify-center items-center bg-gray-900' >
@@ -194,15 +237,23 @@ const GameFinishPage: React.FC = () => {
       )}
 
       {/* Footer Navigation */}
-      <button 
-        onClick={() => navigate('/')}
-        className="w-full max-w-sm mx-auto font-bold text-gray-900 bg-cyan-300 border-2 border-cyan-300 rounded-lg py-3 text-xl
-        transition-all duration-300 transform hover:scale-105
-        hover:bg-transparent hover:text-cyan-300
-        hover:shadow-[0_0_20px_rgba(56,189,248,0.7)]"
-      >
-        Return to Main Menu
-      </button>
+      <div className="flex gap-4 max-w-md mx-auto w-full">
+        {gameData?.tournamentId ? (
+          <button 
+            onClick={() => navigate(`/tournaments/${gameData.tournamentId}`)}
+            className="w-full font-bold text-gray-900 bg-amber-400 border-2 border-amber-400 rounded-lg py-3 text-xl transition-all duration-300 transform hover:scale-105 hover:bg-transparent hover:text-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.7)]"
+          >
+            Return to Tournament
+          </button>
+        ) : (
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full font-bold text-gray-900 bg-cyan-300 border-2 border-cyan-300 rounded-lg py-3 text-xl transition-all duration-300 transform hover:scale-105 hover:bg-transparent hover:text-cyan-300 hover:shadow-[0_0_20px_rgba(56,189,248,0.7)]"
+          >
+            Return to Main Menu
+          </button>
+        )}
+      </div>
       
     </div>
     </div>
