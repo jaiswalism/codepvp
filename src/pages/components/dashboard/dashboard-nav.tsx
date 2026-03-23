@@ -1,6 +1,8 @@
 import { Code, Trophy, Bell, Search } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useUser } from "../../../hooks/useUser"
+import { auth } from "../../../../firebaseConfig";
+import { signOut } from "firebase/auth";
 
 export function DashboardNav() {
   const { userData, loading } = useUser();
@@ -16,7 +18,8 @@ export function DashboardNav() {
     );
   }
   
-  const userlogout = () => {
+  const userlogout = async () => {
+    await signOut(auth);
     localStorage.removeItem("token");
     window.location.href = "/login";
   }

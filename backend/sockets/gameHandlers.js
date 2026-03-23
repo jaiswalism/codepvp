@@ -27,6 +27,42 @@ export function gameHandlers(io, socket) {
     io.to(roomId).emit("navigateToProblemset", { roomId, room });
   });
 
+  // NEW: Dedicated Tournament Match Starter
+  socket.on("forceStartTournamentMatch", ({ roomId, p1Username, p2Username, time, adminName }) => {
+    
+    // 1. Forcefully create the room in memory
+    rooms[roomId] = {
+      owner: adminName,
+      teamA: [{ pid: p1Username, ready: true }], // Force them to be ready
+      teamB: p2Username ? [{ pid: p2Username, ready: true }] : [],
+      public: false,
+      status: "in-progress", // Hide from active lists
+      duration: time * 60,   // Convert minutes to seconds
+      startTime: Date.now(),
+    };
+
+    const room = rooms[roomId];
+    room.endTime = room.startTime + room.duration * 1000;
+    room.teamAFinishedTime = null;
+    room.teamBFinishedTime = null;
+
+    // 2. Start the Server-Side Timer
+    const timerId = setTimeout(() => {
+      io.to(roomId).emit("matchEnd", { reason: "time_up" });
+      activeTimers.delete(roomId);
+    }, room.duration * 1000);
+
+    activeTimers.set(roomId, timerId);
+
+    // 3. Teleport the players using their personal username socket rooms!
+    console.log(`Tournament Match ${roomId} Started. Teleporting players...`);
+    
+    io.to(p1Username).emit("tournamentMatchStarted", { roomId, team: "A" });
+    if (p2Username) {
+      io.to(p2Username).emit("tournamentMatchStarted", { roomId, team: "B" });
+    }
+  });
+
   socket.on("getMatchDetails", ({ roomId }) => {
     const room = rooms[roomId];
     if (room && room.endTime) {
