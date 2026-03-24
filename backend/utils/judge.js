@@ -117,7 +117,7 @@ export async function getVerdict(sourceCode, problemId, languageId) {
 
 async function checkStatus(tokens, result) {
     const tokenQuery = tokens.join(",");
-    const baseUrl = process.env.JUDGE + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
+    const baseUrl = `${process.env.JUDGE}/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
     let ac = false;
     const options = {
     method: 'GET',
