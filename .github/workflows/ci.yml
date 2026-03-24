@@ -68,7 +68,7 @@ jobs:
             git pull origin main
             
             # Rebuild and restart the backend container without downtime
-            docker compose up -d --build backend
+            docker compose up -d --build backend caddy
             
             # Clean up old/dangling Docker images to save disk space
             docker image prune -f
