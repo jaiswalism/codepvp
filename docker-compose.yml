@@ -27,6 +27,8 @@ services:
       - NODE_ENV=production
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   
   caddy:
     image: caddy:2
