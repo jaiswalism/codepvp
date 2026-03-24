@@ -18,8 +18,8 @@ services:
   
   backend:
     build :
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: codepvp_backend
     ports:
       - "5000:5000"
