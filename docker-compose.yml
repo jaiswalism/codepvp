@@ -25,6 +25,7 @@ services:
       - "5000:5000"
     environment:
       - NODE_ENV=production
+      - JUDGE=http://host.docker.internal:2358
     env_file:
       - .env
     extra_hosts:
