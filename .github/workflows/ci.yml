@@ -1,4 +1,4 @@
-name: CI - Build and Test
+name: CI/CD - Build, Test, and Deploy
 
 on:
   push:
@@ -47,8 +47,28 @@ jobs:
         run: npm ci
       - name: Build frontend
         run: npm run build
-      
-      # Docker build (CI verification only)
-      - name: Build Docker images
-        run: |
-          docker compose build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Only run the deploy job if we are merging/pushing to the main branch
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Deploy to Azure VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          password: ${{ secrets.VM_PASSWORD }}
+          script: |
+            cd ~/codepvp
+            
+            # Pull the latest code from GitHub
+            git pull origin main
+            
+            # Rebuild and restart the backend container without downtime
+            docker compose up -d --build backend
+            
+            # Clean up old/dangling Docker images to save disk space
+            docker image prune -f
