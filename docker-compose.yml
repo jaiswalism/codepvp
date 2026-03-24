@@ -27,3 +27,23 @@ services:
       - NODE_ENV=production
     env_file:
       - .env
+  
+  caddy:
+    image: caddy:2
+    container_name: codepvp_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
