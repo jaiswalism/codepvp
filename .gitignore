@@ -68,3 +68,5 @@ coverage/
 
 # Firebase
 backend/secrets/serviceAccountKey.json 
+# Data
+backend/data/*
