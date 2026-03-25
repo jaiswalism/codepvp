@@ -71,7 +71,7 @@ const SinglePlayerProblem: React.FC = () => {
 
     const fetchProblem = async () => {
       try {
-        const docRef = doc(db, "ProblemsWithHTC", problemId);
+        const docRef = doc(db, "APPSProblemsWithHTC", problemId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setData(docSnap.data() as ProblemData);

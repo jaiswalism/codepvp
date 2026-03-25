@@ -28,7 +28,7 @@ const SinglePlayer: React.FC = () => {
     useEffect(() => {
         const fetchProblems = async () => {
             try {
-                const problemsRef = collection(db, "ProblemsWithHTC");
+                const problemsRef = collection(db, "APPSProblemsWithHTC");
                 const querySnapshot = await getDocs(problemsRef);
                 const fetchedProblems: Problem[] = querySnapshot.docs.map((doc) => ({
                     id: doc.id,
