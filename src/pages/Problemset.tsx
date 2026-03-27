@@ -1,5 +1,5 @@
 import { db } from "../../firebaseConfig";
-import { getDoc, doc, updateDoc } from "firebase/firestore";
+import { getDoc, doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { socket } from "../utils/socket";
@@ -7,6 +7,8 @@ import { useMatchTimer } from '../hooks/useMatchTimer';
 import type { gameRes } from "./GameFinishPage";
 import { useUser } from "../hooks/useUser";
 import ChatBox from "./components/chat-box";
+import Matching from "./components/Matching";
+import LoadingScreen from "./components/LoadingScreen";
 
 // Marks the question solved for the whole team
 export const markTeamSolved = async (teamId: string, problemId: string, roomId: string, currentUserName: string) => {
@@ -94,7 +96,14 @@ export default function Problemset() {
   const navigate = useNavigate();
   const { timeLeft, isMatchOver } = useMatchTimer(roomId);
   const { user, loading } = useUser();
-  const [currentUserName, setCurrentUserName] = useState( user?.displayName || user?.email || "Anon")
+
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [showMatching, setShowMatching] = useState(() => {
+    // Check if they've already seen it for this specific room
+    return sessionStorage.getItem(`has_seen_matching_${roomId}`) !== 'true';
+    });
+  const [myTeamData, setMyTeamData] = useState<any[]>([]);
+  const [opponentsData, setOpponentsData] = useState<any[]>([]);
 
   useEffect(() => {
     if(!user && !loading) navigate("/login");
@@ -115,36 +124,54 @@ export default function Problemset() {
       const docRef = doc(db, "RoomSet", roomId!);
       const docSnap = await getDoc(docRef);
 
-      // Redirects to 404 if room not created earlier
-      if(!docSnap.exists()) navigate("/404");
-
-      setCurrentUserName(user?.displayName || user?.email || "Anon");
-
-      const teamKey = teamId == "A" ? "teamA" : "teamB";
-
-        const players: {
-          pid: string;
-          points: number;
-          problemSolved: number;
-        }[] = docSnap.data()?.[teamKey].players || [];
-
-        let pIdx = -1
-
-        pIdx = players.findIndex(
-          (p) => p.pid === currentUserName
-        );
-
-        console.log(pIdx)
-        console.log(currentUserName)
-
-        // if (pIdx == -1) navigate("/404");
-
-      setData(docSnap.data() as gameRes)
-      
+      if(!docSnap.exists()) {
+        navigate("/404");
+        return;
       }
 
+      const roomData = docSnap.data() as gameRes;
+      setData(roomData);
+
+      // Identify which team is which
+      const myTeamKey = teamId === "A" ? "teamA" : "teamB";
+      const oppTeamKey = teamId === "A" ? "teamB" : "teamA";
+      
+      const rawMyTeam = roomData[myTeamKey]?.players || [];
+      const rawOpponents = roomData[oppTeamKey]?.players || [];
+
+      // Helper to fetch ratings for an array of players
+      const fetchRatingsForTeam = async (teamArray: any[]) => {
+        return Promise.all(
+          teamArray.map(async (player: any) => {
+            try {
+              const q = query(collection(db, "users"), where("username", "==", player.pid));
+              const querySnapshot = await getDocs(q);
+              if (!querySnapshot.empty) {
+                return { ...player, rating: querySnapshot.docs[0].data().rating };
+              }
+            } catch (error) {
+              console.error("Failed to fetch user rating:", error);
+            }
+            return player;
+          })
+        );
+      };
+
+      // Fetch both teams simultaneously
+      const [enrichedMyTeam, enrichedOpponents] = await Promise.all([
+        fetchRatingsForTeam(rawMyTeam),
+        fetchRatingsForTeam(rawOpponents)
+      ]);
+      
+      setMyTeamData(enrichedMyTeam);
+      setOpponentsData(enrichedOpponents);
+      
+      // Data is ready, stop loading so Matching screen can play
+      setIsLoadingData(false);
+    };
+
     fetchData();
-  }, [roomId, teamId, navigate]);
+  }, [roomId, teamId, navigate, user]);
 
   useEffect(() => {
     socket.emit("joinProblemset", { roomId, teamId });
@@ -191,6 +218,25 @@ export default function Problemset() {
 
   const currentUserTeamFinished = teamId === 'A' ? teamAFinished : teamBFinished;
 
+
+  if (isLoadingData) {
+    return <LoadingScreen message="Loading Your Game" />; 
+  }
+
+  if (showMatching) {
+    return (
+      <Matching 
+        teamA={myTeamData} 
+        teamB={opponentsData} 
+        onComplete={() => {
+          setShowMatching(false);
+          // Mark as seen so it doesn't show again when navigating back!
+          sessionStorage.setItem(`has_seen_matching_${roomId}`, 'true');
+        }} 
+      />
+    );
+  }
+
   return (
     <div className="flex justify-center items-center bg-gray-900 h-dvh w-dvw">
       <div
@@ -200,13 +246,33 @@ export default function Problemset() {
       shadow-2xl shadow-cyan-500/10"
       >
         {/* Header */}
-        <div className="w-full flex justify-between items-center mb-8">
-          <h2
-            className="text-4xl font-bold text-cyan-300"
-            style={{ textShadow: `0 0 8px #0ff` }}
-          >
-            Problem Set
-          </h2>
+        <div className="w-full flex justify-between items-start mb-8">
+          <div className="flex flex-col gap-3">
+            <h2
+              className="text-4xl font-bold text-cyan-300"
+              style={{ textShadow: `0 0 8px #0ff` }}
+            >
+              Problem Set
+            </h2>
+            
+            {/* Opponents Display */}
+            {opponentsData.length > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400 text-sm uppercase tracking-wider font-semibold">VS:</span>
+                <div className="flex gap-2">
+                  {opponentsData.map((opp: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 bg-gray-800/80 px-3 py-1.5 rounded-md border border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.1)]">
+                      <span className="text-purple-300 font-medium">{opp.pid}</span>
+                      <span className="text-xs font-mono bg-gray-900 px-2 py-0.5 rounded text-cyan-400">
+                        {opp.rating || 'Unrated'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="text-right">
             <p className="text-purple-300 text-lg">Time Remaining</p>
             <p className="text-white text-3xl font-bold font-mono">

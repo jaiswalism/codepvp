@@ -7,6 +7,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useUser } from '../hooks/useUser';
 import { OrbitProgress } from 'react-loading-indicators';
 import { incrementQuestionsSolved } from '../utils/updateUserStats';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 // Problem Data schema
 export interface ProblemData {
@@ -51,6 +55,30 @@ const languageIdMap = {
 
 type Language = keyof typeof languageIdMap;
 
+// Helper component to render Markdown with Math support
+const MarkdownRenderer = ({ content }: { content: string }) => {
+  return (
+    <div className="prose prose-invert prose-sm max-w-none text-gray-300">
+      <ReactMarkdown
+        remarkPlugins={[remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          // Tailwind styling overrides for standard markdown elements
+          p: ({ node, ...props }) => <p className="mb-4 leading-relaxed" {...props} />,
+          pre: ({ node, ...props }) => <pre className="bg-gray-900/50 p-3 rounded-lg overflow-x-auto my-4" {...props} />,
+          code: ({ node, inline, ...props }: any) => 
+            inline ? <code className="bg-gray-800 px-1.5 py-0.5 rounded text-cyan-300 font-mono text-sm" {...props} /> 
+                   : <code {...props} />,
+          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+          li: ({ node, ...props }) => <li {...props} />
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
+
 const SinglePlayerProblem: React.FC = () => {
   const { problemId } = useParams<{ problemId: string }>();
   const navigate = useNavigate();
@@ -71,7 +99,7 @@ const SinglePlayerProblem: React.FC = () => {
 
     const fetchProblem = async () => {
       try {
-        const docRef = doc(db, "APPSProblemsWithHTC", problemId);
+        const docRef = doc(db, "ProblemsWithHTC", problemId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setData(docSnap.data() as ProblemData);
@@ -207,44 +235,39 @@ const SinglePlayerProblem: React.FC = () => {
             {data ? (
               <div>
                 <h3 className="text-xl font-bold text-white mb-4">Problem Statement</h3>
-                <p className="text-gray-300 mb-6 whitespace-pre-wrap">{data.statement}</p>
+                {/* APPS dataset artifact cleanup. 
+                  We remove the header lines because we are rendering our own UI headers.
+                */}
+                <MarkdownRenderer 
+                  content={data.statement
+                    .replace(/-----Constraints-----[\s\S]*/, '') // Remove legacy constraints block from statement
+                    .replace(/-----Sample Input-----[\s\S]*/, '') // Remove legacy sample blocks from statement
+                  } 
+                />
 
-                <h3 className="text-xl font-bold text-white mb-4">Input Format</h3>
-                <p className="text-gray-300 mb-6">{data.inputFormat}</p>
+                <h3 className="text-xl font-bold text-white mt-8 mb-4">Input Format</h3>
+                <MarkdownRenderer content={data.inputFormat} />
 
-                <h3 className="text-xl font-bold text-white mb-4">Output Format</h3>
-                <p className="text-gray-300 mb-6">{data.outputFormat}</p>
+                <h3 className="text-xl font-bold text-white mt-8 mb-4">Output Format</h3>
+                <MarkdownRenderer content={data.outputFormat} />
 
                 {data.samples.map((tc, i) => (
-                  <div key={i}>
+                  <div key={i} className="mt-8">
                     <h3 className="text-xl font-bold text-white mb-4">Example {i + 1}</h3>
-                    <div className="bg-gray-900/50 p-4 rounded-lg mb-6">
-                      <code className="text-gray-300">
-                        <span className="text-purple-400">Input:</span>
-                        <pre>{tc.input}</pre>
-                        <br />
-                        <span className="text-purple-400">Output:</span>
-                        <pre>{tc.output}</pre>
+                    <div className="bg-gray-900/50 p-4 rounded-lg mb-6 border border-gray-700/50 shadow-inner">
+                      <code className="text-gray-300 font-mono text-sm">
+                        <span className="text-cyan-400 font-bold mb-2 block select-none">Input:</span>
+                        <pre className="whitespace-pre-wrap break-all mb-4">{tc.input}</pre>
+                        
+                        <span className="text-purple-400 font-bold mb-2 block select-none">Output:</span>
+                        <pre className="whitespace-pre-wrap break-all">{tc.output}</pre>
                       </code>
                     </div>
                   </div>
                 ))}
 
-                <h3 className="text-xl font-bold text-white mb-4">Constraints</h3>
-                <div className="text-gray-300 whitespace-pre-wrap">{data.constraints}</div>
-
-                {data.tags && data.tags.length > 0 && (
-                  <div className="mt-6">
-                    <h3 className="text-xl font-bold text-white mb-4">Tags</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {data.tags.map((tag, idx) => (
-                        <span key={idx} className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded text-sm">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <h3 className="text-xl font-bold text-white mt-8 mb-4">Constraints</h3>
+                <MarkdownRenderer content={data.constraints} />
               </div>
             ) : (
               <div className="flex items-center justify-center h-64">

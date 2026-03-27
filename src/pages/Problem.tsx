@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react'
 import { editor } from 'monaco-editor'
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
-import { doc, getDoc} from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { socket } from '../utils/socket';
 import { useUser } from '../hooks/useUser';
 import { debounce } from 'lodash';
@@ -80,6 +80,8 @@ const Problem: React.FC = () => {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const testResultsRef = useRef<HTMLDivElement | null>(null);
 
+  const [opponents, setOpponents] = useState<any[]>([]);
+
   // Generate unique localStorage key for this problem
   const storageKey = `code_${roomId}_${problemId}_${teamId}_${language}`;
 
@@ -104,64 +106,6 @@ const Problem: React.FC = () => {
 		}
   	}
 
-    // Function to mark points for a solved question for a team
-    // const markPoints = async (roomId: string, teamId: string, problemId: string, passed: number) => {
-    //   const docRef = doc(db, "RoomSet", roomId!);
-    //   const docSnap = await getDoc(docRef);
-    //   const docData = docSnap.data();
-      
-    //   const teamKey = teamId == "A" ? "teamA" : "teamB"; // Get Team
-    //   const statusKey = teamId == "A" ? "statusA" : "statusB";
-    //   const problemArray = docData?.allProblems || [];
-    //   const problem = problemArray.find((p: any) => p.id === problemId); // Get Problem solved
-
-    //   // If problem already marked as solved then dont consider it
-    //   if (docData?.[teamKey].solvedProblems.includes(problem.title)) return ;
-
-    //   const pointsAwarded = 10 * passed;
-    //   if (problem[statusKey] >= pointsAwarded) return;
-
-    //   // Need a better way to award points because this is exploitable
-    //   const currentScore = docData?.[teamKey].score;
-
-    //   await updateDoc(docRef, {
-    //     [`${teamKey}.score`]: currentScore + (pointsAwarded - problem[statusKey]),
-    //   });
-
-    //   const players: {
-    //       pid: string;
-    //       points: number;
-    //       problemSolved: number;
-    //     }[] = docSnap.data()?.[teamKey].players || [];
-
-    //   const playerIndex = players.findIndex(
-    //     (p) => p.pid === currentUserName
-    //   );
-
-    //   if (playerIndex !== -1) {
-    //     const updatedPlayers = [...docData?.[teamKey].players];
-    //     updatedPlayers[playerIndex] = {
-    //       ...updatedPlayers[playerIndex],
-    //       points: updatedPlayers[playerIndex].points + (pointsAwarded - problem[statusKey]),
-    //       problemsSolved: updatedPlayers[playerIndex].problemsSolved,
-    //     };
-
-    //     await updateDoc(docRef, { // Update the players array
-    //       [`${teamKey}.players`]: updatedPlayers,
-    //     });
-    //   }
-
-    // }
-
-//   useEffect(() => {
-//     if (isMatchOver && !hasAutoSubmitted.current) {
-//       console.log("Match ended. Auto-submitting code...");
-//       Run(); 
-//       hasAutoSubmitted.current = true;
-//     }
-//   }, [isMatchOver]);
-
-
   // --- Collaborative Editing: Prevent remote overwrite of local typing ---
   const isLocalChange = useRef(false);
   const sendChange = useMemo(() =>
@@ -181,7 +125,7 @@ const Problem: React.FC = () => {
    sendChange(codeValue);
   }
 
-  // LOck Screen
+  // Lock Screen
   useEffect(() => {
     const enterFullscreen = async () => {
       if (document.documentElement.requestFullscreen) {
@@ -236,11 +180,12 @@ const Problem: React.FC = () => {
 
 
 
-  // Fetch problem data
+  // Fetch problem data & opponents
   useEffect(() => {
     if (!roomId || !problemId) return;
 
-    const loadProblem = async () => {
+    const loadProblemAndOpponents = async () => {
+      // --- Existing Problem Logic ---
       const roomRef = doc(db, "rooms", roomId);
       const roomSnap = await getDoc(roomRef);
       const mode = roomSnap.exists() && roomSnap.data().mode === 'debug' ? 'debug' : 'normal';
@@ -264,9 +209,41 @@ const Problem: React.FC = () => {
           : undefined;
         setCode(debugStarter || LANGUAGES[effectiveLanguage].template);
       }
+
+      // --- NEW: Fetch Opponent Data & Ratings ---
+      try {
+        const roomSetRef = doc(db, "RoomSet", roomId);
+        const roomSetSnap = await getDoc(roomSetRef);
+        
+        if (roomSetSnap.exists()) {
+          const rsData = roomSetSnap.data();
+          const oppTeamKey = teamId === 'A' ? 'teamB' : 'teamA';
+          const rawOpponents = rsData[oppTeamKey]?.players || [];
+
+          const enrichedOpponents = await Promise.all(
+            rawOpponents.map(async (opp: any) => {
+              try {
+                const q = query(collection(db, "users"), where("username", "==", opp.pid));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                  return { ...opp, rating: querySnapshot.docs[0].data().rating };
+                }
+              } catch (error) {
+                console.error("Failed to fetch user rating:", error);
+              }
+              return opp;
+            })
+          );
+
+          setOpponents(enrichedOpponents);
+        }
+      } catch (err) {
+        console.error("Failed to fetch opponents:", err);
+      }
     };
 
-    loadProblem();
+    loadProblemAndOpponents();
   }, [roomId, problemId, teamId, language]);
 
   // Socket Connection
@@ -381,225 +358,6 @@ const Problem: React.FC = () => {
       }
     }
 
-  /* 
-   Called after problem is submitted to Judge0 and tokens are recieved
-   Checks status of all the problems submitted
-   Calls markPoints or markTeamSolved based on testcase validation 
-  */
-//   const checkStatus = async (tokens: string[], tempRes: TestCases[]) => {
-//    const tokenQuery = tokens.join(",")
-//    const baseUrl = import.meta.env.VITE_JUDGE0_URL + `/submissions/batch?tokens=${tokenQuery}&base64_encoded=true&fields=*`;
-//    const options = {
-//     method: 'GET',
-//     headers: {
-//      // 'X-RapidAPI-Key': import.meta.env.VITE_RAPID_API_KEY as string,
-//      // 'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',
-//      "Cache-Control": "no-cache",
-//      "Pragma": "no-cache",
-//     },
-//    };
-
-//    try {
-//     let allDone = false;
-//     let results: any[] = [];
-
-//     while (!allDone) {
-//      const url = `${baseUrl}&_=${Date.now()}`;
-//      let response = await fetch(url, options);
-//      if (!response.ok) {
-//       throw new Error(`HTTP error! status: ${response.status}`);
-//      }
-
-//      let data = await response.json();
-//      results = data.submissions || data;
-
-//      // Guard: remove nulls
-//      results = results.filter((res: any) => res !== null);
-
-//      // If we still have missing results, keep polling
-//      allDone =
-//       results.length === tokens.length &&
-//       results.every(
-//        (res: any) => res.status?.id !== 1 && res.status?.id !== 2
-//       );
-
-//      if (!allDone) {
-//       await new Promise((resolve) => setTimeout(resolve, 2000));
-//      }
-//     }
-
-//     let allPassed = true;
-//     let countPassed = 0;
-//     results.forEach((res: any, idx: number) => {
-//      if (!res || !res.status) {
-//       console.log(`Testcase ${idx + 1}: ❌ Invalid response (null result)`);
-//       allPassed = false;
-//       return;
-//      }
-
-//      const stdout = res.stdout ? atob(res.stdout) : null;
-//      const stderr = res.stderr ? atob(res.stderr) : null;
-
-//      const verdict = res.status?.description || "Unknown";
-//      const passed = res.status?.id === 3; // 3 = Accepted
-
-//      tempRes[idx] = {
-//       ...tempRes[idx],
-//       output: stdout ?? "",
-//       error: !!stderr,
-//       errorMessage: stderr ?? "",
-//       verdict: verdict,
-//      };
-
-//      if (passed) {
-//       countPassed += 1
-//      } else {
-//       allPassed = false;
-//      }
-
-//         });
-        
-//         // markPoints(roomId!, teamId!, problemId!, countPassed)
-
-//         if (allPassed && socket && roomId && problemId && teamId) {
-//           socket.emit("markSolved", { roomId, teamId, problemId, username: currentUserName });
-//           markTeamSolved(teamId, problemId, roomId, currentUserName)
-//         }
-//       } catch (err: any) {
-//         console.error(err);
-//       }
-//       setIsLoading(false);
-//       setTestResults([...tempRes]);
-//       setTimeout(() => {
-//         testResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-//       }, 100);
-//     };
-
-  /*
-   Called when user clicks Submit
-   Sends code along with testcases to Judge0 and gets back tokens which is then checked
-   via checkStatus funciton
-  */
-//   async function Run() {
-//     setIsLoading(true);
-//     const sourceCode = editorRef.current?.getValue();
-//     if(sourceCode === ""){ 
-//      setIsLoading(false)
-//      return
-//     }
-//     const url = import.meta.env.VITE_JUDGE0_URL + '/submissions/batch?fields=*';
-//     const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
-//     let submissions: {}[] = [];
-//     let tempRes: TestCases[] = [];
-
-//     // get sample testcases
-//     data?.samples.map((tc) => {
-//      submissions.push(
-//       {
-//        source_code: normalizedCode,
-//        language_id: languageIdMap[language],
-//        stdin: tc.input,
-//        expected_output: tc.output,
-//       }
-//      );
-//       tempRes.push(
-//        {
-//         input: tc.input,
-//         expected: tc.output,
-//         output: "",
-//         verdict: "",
-//         hidden: false,
-//         error: false,
-//         errorMessage: ""
-//        }
-//       );
-//     })
-
-//     data?.hiddenTestCases.map((tc) => {
-//      submissions.push(
-//       {
-//        source_code: normalizedCode,
-//        language_id: languageIdMap[language],
-//        stdin: tc.input,
-//        expected_output: tc.output,
-//       }
-//      );
-//       tempRes.push(
-//        {
-//         input: tc.input,
-//         expected: tc.output,
-//         output: "",
-//         verdict: "",
-//         hidden: true,
-//         error: false,
-//         errorMessage: ""
-//        }
-//       );
-//     })
-
-//     setTestResults(tempRes);
-
-//     console.log(submissions);
-
-//     const options = {
-//       method: 'POST',
-//       headers: {
-//         'content-type': 'application/json',
-//       },
-//       body: JSON.stringify({
-//        submissions: submissions
-//       }),
-//     };
-
-//     try {
-//       const response = await fetch(url, options);
-//       if(!response.ok) {
-//         const errorData = await response.json();
-//         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-//       }
-//       const data = await response.json();
-//       const tokens = data.map((d: any) => d.token);
-//       await checkStatus(tokens, tempRes);
-//     } catch (err: any) {
-//       console.error(err);
-//     }
-//   }
-
-    // useEffect(() => {
-
-    //   if (!user) return;
-    //   if (!roomId) return;
-
-    //   const fetchData = async () => {
-    //     const docRef = doc(db, "RoomSet", roomId!);
-    //     const docSnap = await getDoc(docRef);
-
-    //     // Redirects to 404 if room not created earlier
-    //     if(!docSnap.exists()) navigate("/404");
-
-    //     const teamKey = teamId == "A" ? "teamA" : "teamB";
-
-    //     const players: {
-    //       pid: string;
-    //       points: number;
-    //       problemSolved: number;
-    //     }[] = docSnap.data()?.[teamKey].players || [];
-
-    //     let pIdx = -1
-
-    //     pIdx = players.findIndex(
-    //       (p) => p.pid === currentUserName
-    //     );
-
-    //     if (pIdx == -1) navigate("/404"); // Player not found in the team
-  
-    //     setPassData(docSnap.data() as gameRes)
-    //     console.log("fetched")
-        
-    //     }
-  
-    //   fetchData();
-    // },[passData]);
 
 const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
 
@@ -607,10 +365,30 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
     <div className="h-screen flex flex-col bg-black overflow-hidden">
       {/* Header */}
       <header className="shrink-0 flex justify-between items-center px-4 py-2 border-b border-gray-700/50 bg-gray-900/50">
-        <h2 className="text-xl font-bold text-cyan-300">{data?.title}</h2>
+        <div className="flex items-center gap-6">
+          <h2 className="text-xl font-bold text-cyan-300">{data?.title}</h2>
+          
+          {/* Opponents Display */}
+          {opponents.length > 0 && (
+            <div className="flex items-center gap-2 border-l border-gray-700/80 pl-6">
+              <span className="text-xs text-gray-500 uppercase font-bold">VS</span>
+              {opponents.map((opp: any, idx: number) => (
+                <div key={idx} className="flex items-center gap-1.5 bg-gray-800/60 px-2 py-1 rounded border border-gray-700">
+                  <span className="text-sm text-purple-300">{opp.pid}</span>
+                  <span className="text-xs font-mono text-cyan-400 bg-black/40 px-1.5 rounded">
+                    {opp.rating || 'Unrated'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* The rest of your header stays exactly the same */}
         <div className="text-xl font-mono bg-gray-800/50 backdrop-blur-sm px-4 py-2 rounded-lg border border-cyan-400/20">
           <span className="text-cyan-300">Time Left: {timeLeft}</span>
         </div>
+
         <div className="flex items-center gap-4">
           <button
             onClick={handleSubmit}

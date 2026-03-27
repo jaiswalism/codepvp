@@ -375,7 +375,7 @@ const MultiPlayer: React.FC = () => {
                 </label>
                 <input
                   type="range"
-                  min="2"
+                  min="5"
                   max="60"
                   step="5"
                   value={roomSettings.time}

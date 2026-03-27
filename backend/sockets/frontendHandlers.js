@@ -175,7 +175,7 @@ async function tryMatch(io) {
 
     if (!p1 || !p2 || !p3 || !p4) return;
 
-    const time = 2;
+    const time = 15;
     const durationMs = time * 60 * 1000;
 
     const frontendRoomData = createRoom(p1, p2, p3, p4, time);
