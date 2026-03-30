@@ -208,9 +208,7 @@ const Problem: React.FC = () => {
 
   const { user } = useUser();
   const currentUserName = user?.displayName || user?.email || "Anon";
-
   const [code, setCode] = useState("");
-
   const [opponents, setOpponents] = useState<any[]>([]);
 
   // Generate unique localStorage key for this problem
@@ -219,7 +217,6 @@ const Problem: React.FC = () => {
   const navigate = useNavigate();
 
   const { timeLeft, isMatchOver } = useMatchTimer(roomId);
-//   const hasAutoSubmitted = useRef(false);
 
   	const handleLangChange = (event: any) => {
       if (roomMode === 'debug') return;
@@ -311,63 +308,51 @@ const Problem: React.FC = () => {
 
 
 
-  // Fetch problem data & opponents
+  // Fetch problem data & opponents (MODE-AWARE)
   useEffect(() => {
     if (!roomId || !problemId) return;
 
     const loadProblemAndOpponents = async () => {
-      // --- Existing Problem Logic ---
-      const roomRef = doc(db, "rooms", roomId);
+      // 1. Fetch Problem Data
+      const roomRef = doc(db, "RoomSet", roomId);
       const roomSnap = await getDoc(roomRef);
-      const mode = roomSnap.exists() && roomSnap.data().mode === 'debug' ? 'debug' : 'normal';
+      const isRoom = roomSnap.exists();
+
+      const mode = isRoom && roomSnap.data().mode === 'debug' ? 'debug' : 'normal';
       setRoomMode(mode);
 
       const effectiveLanguage: Language = mode === 'debug' ? DEBUG_LANGUAGE : language;
-      if (mode === 'debug' && language !== DEBUG_LANGUAGE) {
-        setLanguage(DEBUG_LANGUAGE);
-      }
-
       const collectionName = mode === 'debug' ? 'DebugProblems' : 'ProblemsWithHTC';
-      const problemDoc = await getDocumentData(collectionName, problemId);
+      
+      const probRef = doc(db, collectionName, problemId);
+      const probSnap = await getDoc(probRef);
+      if(probSnap.exists()) setData(probSnap.data() as ProblemData);
 
+      // Load initial code
       const modeStorageKey = `code_${roomId}_${problemId}_${teamId}_${effectiveLanguage}`;
       const savedCode = localStorage.getItem(modeStorageKey);
-      if (savedCode) {
-        setCode(savedCode);
-      } else {
-        const debugStarter = mode === 'debug'
-          ? problemDoc?.buggyTemplateByLanguage?.[DEBUG_LANGUAGE]
-          : undefined;
-        setCode(debugStarter || LANGUAGES[effectiveLanguage].template);
-      }
+      if (savedCode) setCode(savedCode);
+      else setCode(LANGUAGES[effectiveLanguage].template);
 
-      // --- NEW: Fetch Opponent Data & Ratings ---
+      // 2. Fetch Opponents for Header
       try {
-        const roomSetRef = doc(db, "RoomSet", roomId);
-        const roomSetSnap = await getDoc(roomSetRef);
-        
-        if (roomSetSnap.exists()) {
-          const rsData = roomSetSnap.data();
+        if (isRoom) {
+          // Legacy 1v1
+          const rsData = roomSnap.data();
           const oppTeamKey = teamId === 'A' ? 'teamB' : 'teamA';
-          const rawOpponents = rsData[oppTeamKey]?.players || [];
-
-          const enrichedOpponents = await Promise.all(
-            rawOpponents.map(async (opp: any) => {
-              try {
-                const q = query(collection(db, "users"), where("username", "==", opp.pid));
-                const querySnapshot = await getDocs(q);
-                
-                if (!querySnapshot.empty) {
-                  return { ...opp, rating: querySnapshot.docs[0].data().rating };
-                }
-              } catch (error) {
-                console.error("Failed to fetch user rating:", error);
-              }
-              return opp;
-            })
-          );
-
-          setOpponents(enrichedOpponents);
+          setOpponents(rsData[oppTeamKey]?.players || []);
+        } else {
+          // FFA Mode
+          const teamsQuery = query(collection(db, "Teams"), where("contestId", "==", roomId));
+          const teamsSnap = await getDocs(teamsQuery);
+          const otherTeams: any[] = [];
+          
+          teamsSnap.forEach(doc => {
+            if (doc.id !== teamId) otherTeams.push({ id: doc.id, ...doc.data() });
+          });
+          
+          otherTeams.sort((a, b) => (b.score || 0) - (a.score || 0));
+          setOpponents(otherTeams.slice(0, 3).map(t => ({ pid: t.name, rating: `Score: ${t.score || 0}` })));
         }
       } catch (err) {
         console.error("Failed to fetch opponents:", err);
@@ -427,18 +412,18 @@ const Problem: React.FC = () => {
    };
   }, [storageKey]);
 
-  async function getDocumentData(collectionName: string, documentId: string) {
-    const docRef = doc(db, collectionName, documentId);
-    const docSnap = await getDoc(docRef);
-    if(docSnap.exists()) {
-      const problemData = docSnap.data() as ProblemData;
-      setData(problemData);
-      return problemData;
-    } else {
-      console.log("GAY"); // This should not be removed from the code(or else)
-      return null;
-    }
-  }
+  // async function getDocumentData(collectionName: string, documentId: string) {
+  //   const docRef = doc(db, collectionName, documentId);
+  //   const docSnap = await getDoc(docRef);
+  //   if(docSnap.exists()) {
+  //     const problemData = docSnap.data() as ProblemData;
+  //     setData(problemData);
+  //     return problemData;
+  //   } else {
+  //     console.log("GAY"); // This should not be removed from the code(or else)
+  //     return null;
+  //   }
+  // }
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 

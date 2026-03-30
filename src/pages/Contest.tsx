@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, arrayUnion, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, arrayUnion, deleteDoc, onSnapshot, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import { useUser } from '../hooks/useUser';
 import LoadingScreen from './components/LoadingScreen';
-import { Flame, Users, Key, ShieldAlert, Gift, ArrowLeft, Swords, Clock, Trophy, Trash2, Play, Square } from 'lucide-react';
+import { Flame, Users, Key, ShieldAlert, Gift, ArrowLeft, Swords, Clock, Trophy, Trash2, Play, Square, LogOut } from 'lucide-react';
+import { socket } from '../utils/socket';
 
 interface Contest {
   id: string;
@@ -24,6 +25,7 @@ interface Team {
   leaderId: string;
   members: string[]; // Array of user UIDs
   score?: number; // Added for leaderboard
+  finishedAt?: any;
 }
 
 interface PlayerDetails {
@@ -91,7 +93,17 @@ const Contest: React.FC = () => {
           tData.members.forEach(uid => uidsToFetch.add(uid));
         });
 
-        teamsData.sort((a, b) => (b.score || 0) - (a.score || 0));
+        teamsData.sort((a, b) => {
+          // 1. Sort by score (Highest first)
+          if (b.score !== a.score) return (b.score || 0) - (a.score || 0);
+          
+          // 2. Tie-breaker: Who extracted first? (Lowest timestamp first)
+          // If a team hasn't extracted, Infinity pushes them down in a tie.
+          const aTime = a.finishedAt?.toMillis() || Infinity;
+          const bTime = b.finishedAt?.toMillis() || Infinity;
+          return aTime - bTime;
+        });
+
         setLeaderboard(teamsData);
 
         // 3. Fetch User Details for participants
@@ -210,16 +222,62 @@ const Contest: React.FC = () => {
     }
   };
 
-  // ADMIN ACTION: Start Contest
-  const handleStartContest = async () => {
-    if (!window.confirm("Are you sure you want to open the arena? All registered operatives will be allowed to enter.")) return;
+  // USER ACTION: Leave Team
+  const handleLeaveTeam = async () => {
+    if (!userTeam || !user || !id) return;
+    if (!window.confirm("Are you sure you want to abandon your squad?")) return;
+    
+    setActionLoading(true);
     try {
-      await updateDoc(doc(db, "Contests", id!), { status: 'Ongoing' });
+      const teamRef = doc(db, "Teams", userTeam.id);
+      
+      if (userTeam.members.length === 1) {
+        // If user is the last member, delete the team entirely
+        await deleteDoc(teamRef);
+        setLeaderboard(prev => prev.filter(t => t.id !== userTeam.id));
+      } else {
+        // Otherwise, just remove the user from the members array
+        await updateDoc(teamRef, {
+          members: arrayRemove(user.uid)
+        });
+        setLeaderboard(prev => prev.map(t => {
+          if (t.id === userTeam.id) {
+            return { ...t, members: t.members.filter(uid => uid !== user.uid) };
+          }
+          return t;
+        }));
+      }
+      
+      setUserTeam(null);
+      setJoinMode('idle');
     } catch (err) {
-      console.error(err);
-      alert("Failed to start arena.");
+      console.error("Error leaving squad:", err);
+      alert("Failed to abandon squad.");
+    } finally {
+      setActionLoading(false);
     }
   };
+
+  // ADMIN ACTION: Start Contest
+  const handleStartContest = async () => {
+  if (!window.confirm("Are you sure you want to open the arena? All registered operatives will be allowed to enter.")) return;
+  
+  try {
+    // 1. Tell backend to start the timer (Assume a 60 min default, or pull from contest data if you add it)
+    socket.emit("startFFAContest", { 
+      contestId: id, 
+      adminName: userData?.username || "Admin", 
+      durationMinutes: 10 // Replace with your actual contest duration variable if you have one
+    });
+
+    // 2. Update Firebase (This instantly changes status to 'Ongoing' for all users)
+    await updateDoc(doc(db, "Contests", id!), { status: 'Ongoing', startDate: serverTimestamp() });
+    
+  } catch (err) {
+    console.error(err);
+    alert("Failed to start arena.");
+  }
+};
 
   // ADMIN ACTION: End Contest
   const handleEndContest = async () => {
@@ -368,7 +426,7 @@ const Contest: React.FC = () => {
                                   className="inline-block h-6 w-6 rounded-full ring-2 ring-gray-900 object-cover bg-gray-800" 
                                 />
                               ) : (
-                                <div key={memberUid} className="inline-block h-6 w-6 rounded-full ring-2 ring-gray-900 bg-gray-700 flex items-center justify-center text-[10px] text-gray-400">?</div>
+                                <div key={memberUid} className="h-6 w-6 rounded-full ring-2 ring-gray-900 bg-gray-700 flex items-center justify-center text-[10px] text-gray-400">?</div>
                               );
                             })}
                           </div>
@@ -471,7 +529,7 @@ const Contest: React.FC = () => {
 
                 {/* DYNAMIC TELEPORT BUTTON */}
                 <button 
-                  onClick={() => navigate(`/contests/${id}/play`)} // Note: You can adjust this route!
+                  onClick={() => navigate(`/room/${contest.id}/problemset/team/${userTeam.id}`)} // Note: You can adjust this route!
                   disabled={contest.status !== 'Ongoing'}
                   className={`w-full py-4 rounded-lg font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${
                     contest.status === 'Ongoing' 
@@ -484,6 +542,16 @@ const Contest: React.FC = () => {
                   ) : (
                     'Awaiting Deployment...'
                   )}
+                </button>
+
+                {/* LEAVE TEAM BUTTON */}
+                <button
+                  onClick={handleLeaveTeam}
+                  disabled={actionLoading || contest.status === 'Ongoing'}
+                  className="w-full mt-3 py-3 rounded-lg font-bold uppercase tracking-widest text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <LogOut size={16} />
+                  {actionLoading ? 'Leaving...' : 'Abandon Squad'}
                 </button>
               </div>
             ) : 

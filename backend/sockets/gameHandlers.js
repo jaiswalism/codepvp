@@ -63,6 +63,30 @@ export function gameHandlers(io, socket) {
     }
   });
 
+  // NEW: Dedicated FFA Contest Starter
+  socket.on("startFFAContest", ({ contestId, adminName, durationMinutes }) => {
+    // 1. Create a lightweight room in memory just for the timer
+    rooms[contestId] = {
+      owner: adminName,
+      isFFA: true, // Flag to identify mode
+      status: "in-progress",
+      duration: durationMinutes * 60, // convert to seconds
+      startTime: Date.now(),
+      endTime: Date.now() + (durationMinutes * 60 * 1000)
+    };
+
+    // 2. Start the Server-Side Timer
+    const timerId = setTimeout(() => {
+      // When time is up, blast the matchEnd event to everyone in the problemset
+      io.to(contestId).emit("matchEnd", { reason: "time_up" });
+      activeTimers.delete(contestId);
+      console.log(`FFA Contest ${contestId} ended due to time limit.`);
+    }, durationMinutes * 60 * 1000);
+
+    activeTimers.set(contestId, timerId);
+    console.log(`FFA Contest ${contestId} started by ${adminName}. Timer set for ${durationMinutes} minutes.`);
+  });
+
   socket.on("getMatchDetails", ({ roomId }) => {
     const room = rooms[roomId];
     if (room && room.endTime) {

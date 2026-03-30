@@ -1,5 +1,5 @@
 import { db } from "../../firebaseConfig";
-import { getDoc, doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { getDoc, doc, updateDoc, collection, query, where, getDocs, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { socket } from "../utils/socket";
@@ -10,64 +10,71 @@ import ChatBox from "./components/chat-box";
 import Matching from "./components/Matching";
 import LoadingScreen from "./components/LoadingScreen";
 
-// Marks the question solved for the whole team
+// --- UNIFIED SCORING LOGIC ---
 export const markTeamSolved = async (teamId: string, problemId: string, roomId: string, currentUserName: string) => {
+  // 1. Check if it's an FFA Contest
+  const contestRef = doc(db, "Contests", roomId);
+  const contestSnap = await getDoc(contestRef);
 
-  const docRef = doc(db, "RoomSet", roomId!);
+  if (contestSnap.exists()) {
+    // --- FFA MODE SCORING ---
+    const teamRef = doc(db, "Teams", teamId);
+    const teamSnap = await getDoc(teamRef);
+    if (!teamSnap.exists()) return;
+
+    const teamData = teamSnap.data();
+    const solvedProblems = teamData.solvedProblems || [];
+
+    if (solvedProblems.includes(problemId)) return; // Already solved
+
+    // Fetch problem difficulty to assign points
+    const probRef = doc(db, "ProblemsWithHTC", problemId);
+    const probSnap = await getDoc(probRef);
+    const difficulty = probSnap.data()?.difficulty || 'Medium';
+    const points = difficulty === 'Easy' ? 10 : difficulty === 'Medium' ? 20 : 30;
+
+    await updateDoc(teamRef, {
+      solvedProblems: arrayUnion(problemId), // Store ID instead of title for FFA robustness
+      score: (teamData.score || 0) + points
+    });
+    return;
+  }
+
+  // 2. --- LEGACY 1V1 SCORING ---
+  const docRef = doc(db, "RoomSet", roomId);
   const docSnap = await getDoc(docRef);
-  const data = docSnap.data()
+  if (!docSnap.exists()) return;
+  const data = docSnap.data();
 
   const problemArray = data?.allProblems || [];
-
   const problem = problemArray.find((p: any) => p.id === problemId);
   const teamKey = teamId === "A" ? "teamA" : "teamB";
 
   const solvedProblems = data?.[teamKey]?.solvedProblems || [];
-
-  // If not already solved then add it to solved list
   if (solvedProblems.includes(problem.title)) return;
   else solvedProblems.push(problem.title);
 
   const currScore = data?.[teamKey].score;
   const difficulty: string = problem.difficulty;
-
-  let points = 0;
-
-  if (difficulty === 'Easy') {
-    points = 10;
-  } else if (difficulty === 'Medium') {
-    points = 20;
-  } else {
-    points = 30
-  }
+  let points = difficulty === 'Easy' ? 10 : difficulty === 'Medium' ? 20 : 30;
 
   await updateDoc(docRef, {
     [`${teamKey}.solvedProblems`]: solvedProblems,
     [`${teamKey}.score`]: currScore + points
   });
 
-    const players: {
-      pid: string;
-      points: number;
-      problemSolved: number;
-    }[] = docSnap.data()?.[teamKey].players || [];
+  const players = docSnap.data()?.[teamKey].players || [];
+  const playerIndex = players.findIndex((p: any) => p.pid === currentUserName);
 
-    const playerIndex = players.findIndex(
-      (p) => p.pid === currentUserName
-    );
-
-    if (playerIndex !== -1) {
-      const updatedPlayers = [...data?.[teamKey].players];
-      updatedPlayers[playerIndex] = {
-        ...updatedPlayers[playerIndex],
-        points: updatedPlayers[playerIndex].points + points,
-        problemsSolved: updatedPlayers[playerIndex].problemsSolved + 1,
-      };
-
-      await updateDoc(docRef, { // Update the players array
-        [`${teamKey}.players`]: updatedPlayers,
-      });
-    }
+  if (playerIndex !== -1) {
+    const updatedPlayers = [...data?.[teamKey].players];
+    updatedPlayers[playerIndex] = {
+      ...updatedPlayers[playerIndex],
+      points: updatedPlayers[playerIndex].points + points,
+      problemsSolved: updatedPlayers[playerIndex].problemsSolved + 1,
+    };
+    await updateDoc(docRef, { [`${teamKey}.players`]: updatedPlayers });
+  }
 }
 
 const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
@@ -89,6 +96,10 @@ const StatusIcon: React.FC<{ solved: boolean }> = ({ solved }) => {
 
 export default function Problemset() {
   const [data, setData] = useState<gameRes | null>(null);
+
+  const [isFFA, setIsFFA] = useState(false); // Mode Tracker
+  const [ffaSolved, setFfaSolved] = useState<string[]>([]); // Track local team solves for FFA
+
   const [teamAFinished, setTeamAFinished] = useState(false);
   const [teamBFinished, setTeamBFinished] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -115,59 +126,74 @@ export default function Problemset() {
           console.log("Match ended. Auto-submitting code...");
           navigate(`/room/${roomId}/results`)
       }
-  }, [isMatchOver]);
+  }, [isMatchOver, roomId, navigate]);
 
   useEffect(() => {
     if (!roomId || !teamId) return;
     
     const fetchData = async () => {
-      const docRef = doc(db, "RoomSet", roomId!);
-      const docSnap = await getDoc(docRef);
+      // 1. Try fetching legacy RoomSet (1v1)
+      const roomRef = doc(db, "RoomSet", roomId!);
+      const roomSnap = await getDoc(roomRef);
 
-      if(!docSnap.exists()) {
-        navigate("/404");
-        return;
-      }
+      if (roomSnap.exists()) {
+        setIsFFA(false);
+        const roomData = roomSnap.data() as gameRes;
+        setData(roomData);
 
-      const roomData = docSnap.data() as gameRes;
-      setData(roomData);
+        const myTeamKey = teamId === "A" ? "teamA" : "teamB";
+        const oppTeamKey = teamId === "A" ? "teamB" : "teamA";
+        
+        // ... (Keep existing fetchRatingsForTeam logic for 1v1 here to populate myTeamData/opponentsData)
+        setMyTeamData(roomData[myTeamKey]?.players || []);
+        setOpponentsData(roomData[oppTeamKey]?.players || []);
+        setIsLoadingData(false);
 
-      // Identify which team is which
-      const myTeamKey = teamId === "A" ? "teamA" : "teamB";
-      const oppTeamKey = teamId === "A" ? "teamB" : "teamA";
-      
-      const rawMyTeam = roomData[myTeamKey]?.players || [];
-      const rawOpponents = roomData[oppTeamKey]?.players || [];
+      } else {
+        // 2. Fallback to Contests Collection (FFA Mode)
+        const contestRef = doc(db, "Contests", roomId);
+        const contestSnap = await getDoc(contestRef);
 
-      // Helper to fetch ratings for an array of players
-      const fetchRatingsForTeam = async (teamArray: any[]) => {
-        return Promise.all(
-          teamArray.map(async (player: any) => {
-            try {
-              const q = query(collection(db, "users"), where("username", "==", player.pid));
-              const querySnapshot = await getDocs(q);
-              if (!querySnapshot.empty) {
-                return { ...player, rating: querySnapshot.docs[0].data().rating };
-              }
-            } catch (error) {
-              console.error("Failed to fetch user rating:", error);
+        if (contestSnap.exists()) {
+          setIsFFA(true);
+          setShowMatching(false); // Skip matching screen for FFA 
+          const contestData = contestSnap.data();
+
+          // Fetch Problems
+          const pIds = contestData.problemIds || [];
+          const probPromises = pIds.map((id: string) => getDoc(doc(db, "ProblemsWithHTC", id)));
+          const probDocs = await Promise.all(probPromises);
+          const loadedProblems = probDocs.map(d => ({ id: d.id, ...d.data() }));
+
+          // Construct a mock 'data' object so the UI maps over it cleanly
+          setData({ allProblems: loadedProblems } as any);
+
+          // Fetch FFA Teams
+          const teamsQuery = query(collection(db, "Teams"), where("contestId", "==", roomId));
+          const teamsSnap = await getDocs(teamsQuery);
+          
+          let myFfaTeam: any = null;
+          const otherTeams: any[] = [];
+
+          teamsSnap.forEach(doc => {
+            if (doc.id === teamId) {
+              myFfaTeam = { id: doc.id, ...doc.data() };
+            } else {
+              otherTeams.push({ id: doc.id, ...doc.data() });
             }
-            return player;
-          })
-        );
-      };
+          });
 
-      // Fetch both teams simultaneously
-      const [enrichedMyTeam, enrichedOpponents] = await Promise.all([
-        fetchRatingsForTeam(rawMyTeam),
-        fetchRatingsForTeam(rawOpponents)
-      ]);
-      
-      setMyTeamData(enrichedMyTeam);
-      setOpponentsData(enrichedOpponents);
-      
-      // Data is ready, stop loading so Matching screen can play
-      setIsLoadingData(false);
+          if (myFfaTeam) setFfaSolved(myFfaTeam.solvedProblems || []);
+          
+          // Show top 3 other teams as "Opponents"
+          otherTeams.sort((a, b) => (b.score || 0) - (a.score || 0));
+          setOpponentsData(otherTeams.slice(0, 3).map(t => ({ pid: t.name, rating: `Score: ${t.score || 0}` })));
+          
+          setIsLoadingData(false);
+        } else {
+          navigate("/404");
+        }
+      }
     };
 
     fetchData();
@@ -178,8 +204,11 @@ export default function Problemset() {
   }, [roomId, teamId]);
 
   useEffect(() => {
-    const handleSolvedProblem = ({  problemId, teamId, username }: { problemId: string, teamId: string, username: string }) => {
-      markTeamSolved(teamId, problemId, roomId!, username);
+    const handleSolvedProblem = ({  problemId, teamId: eventTeamId, username }: any) => {
+      markTeamSolved(eventTeamId, problemId, roomId!, username);
+      if (isFFA && eventTeamId === teamId) {
+        setFfaSolved(prev => [...prev, problemId]);
+      }
     };
     
     const handleTeamFinished = ({ teamId }: { teamId: string }) => {
@@ -197,20 +226,37 @@ export default function Problemset() {
       socket.off("solvedProblem", handleSolvedProblem);
       socket.off("teamFinishedUpdate", handleTeamFinished);
     };
-  }, [roomId, data]);
+  }, [roomId, data, isFFA]);
 
   const allProblemsSolved = useMemo(() => {
-    if (!data || !teamId) return false;
+    if (!data || !data.allProblems || !teamId) return false;
 
-    const solvedSet = new Set(
-      teamId === "A" ? data.teamA.solvedProblems : data.teamB.solvedProblems
-    );
+    if (isFFA) {
+      return data.allProblems.every((p: any) => (ffaSolved || []).includes(p.id));
+    } else {
+      // Safely extract the team data for 1v1 mode
+      const teamData = teamId === "A" ? data?.teamA : data?.teamB;
+      const solvedArray = teamData?.solvedProblems || [];
+      const solvedSet = new Set(solvedArray);
+      
+      return data.allProblems.every((problem: any) => solvedSet.has(problem.title));
+    }
+  }, [data, teamId, ffaSolved, isFFA]);
 
-    return data.allProblems.every((problem: any) => solvedSet.has(problem.title));
-  }, [data, teamId, data?.teamA?.solvedProblems, data?.teamB?.solvedProblems]);
 
+  const handleFinishGame = async () => {
+    if (isFFA && teamId) {
+      if (!window.confirm("Are you sure you want to extract? You won't be able to solve more problems, but your completion time will be locked in for tie-breakers.")) return;
+      
+      const teamRef = doc(db, "Teams", teamId);
+      await updateDoc(teamRef, {
+        finishedAt: serverTimestamp() // Locks in their final time
+      });
+      
+      navigate(`/room/${roomId}/results`);
+      return;
+    }
 
-  const handleFinishGame = () => {
     if (allProblemsSolved) {
       socket.emit("finishGame", { roomId, teamId });
     }
@@ -220,10 +266,10 @@ export default function Problemset() {
 
 
   if (isLoadingData) {
-    return <LoadingScreen message="Loading Your Game" />; 
+    return <LoadingScreen message="Loading Arena" />; 
   }
 
-  if (showMatching) {
+  if (showMatching && !isFFA) {
     return (
       <Matching 
         teamA={myTeamData} 
@@ -248,11 +294,8 @@ export default function Problemset() {
         {/* Header */}
         <div className="w-full flex justify-between items-start mb-8">
           <div className="flex flex-col gap-3">
-            <h2
-              className="text-4xl font-bold text-cyan-300"
-              style={{ textShadow: `0 0 8px #0ff` }}
-            >
-              Problem Set
+            <h2 className="text-4xl font-bold text-cyan-300" style={{ textShadow: `0 0 8px #0ff` }}>
+              {isFFA ? "FFA Drop Zone" : "Problem Set"}
             </h2>
             
             {/* Opponents Display */}
@@ -282,45 +325,39 @@ export default function Problemset() {
         </div>
 
         {/* Problem List */}
-        <div className="w-full flex flex-col gap-4">
-          {data?.allProblems.map((problem: any, index) => (
-            <div
-              key={index}
-              className="flex justify-between items-center p-4 bg-gray-900/40 border border-gray-700/50 rounded-lg
-            hover:bg-gray-800/60 hover:border-cyan-400/50 transition-all duration-300"
-            >
-              <div className="flex items-center gap-4">
-                <span className="text-2xl text-gray-600 font-bold">
-                  0{index + 1}
-                </span>
-                <h3 className="text-2xl text-white">{problem.title}</h3>
+        <div className="w-full flex flex-col gap-4 overflow-y-auto max-h-[50vh] pr-2 custom-scrollbar">
+          {data?.allProblems?.map((problem: any, index: number) => {
+            
+            // Bulletproof check for both modes
+            let isSolved = false;
+            if (isFFA) {
+              isSolved = (ffaSolved || []).includes(problem.id);
+            } else {
+              const teamData = teamId === "A" ? data?.teamA : data?.teamB;
+              isSolved = teamData?.solvedProblems?.includes(problem.title) || false;
+            }
+
+            return (
+              <div key={index} className="flex justify-between items-center p-4 bg-gray-900/40 border border-gray-700/50 rounded-lg hover:bg-gray-800/60 hover:border-cyan-400/50 transition-all">
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl text-gray-600 font-bold">0{index + 1}</span>
+                  <h3 className="text-xl md:text-2xl text-white">{problem.title}</h3>
+                </div>
+                <div className="flex items-center gap-6">
+                  <StatusIcon solved={isSolved} />
+                  <button
+                    onClick={() => navigate(`/room/${roomId}/problems/${problem.id}/team/${teamId}`)}
+                    className="font-bold text-cyan-300 border-2 border-cyan-400/50 rounded-lg px-5 py-2 transition-all hover:bg-cyan-300 hover:text-gray-900"
+                  >
+                    View
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-6">
-                <StatusIcon
-                  solved={
-                    teamId === "A"
-                      ? data.teamA.solvedProblems.includes(problem.title)
-                      : data.teamB.solvedProblems.includes(problem.title)
-                  }
-                />
-                <button
-                  onClick={() => {
-                    navigate(
-                      `/room/${roomId}/problems/${problem.id}/team/${teamId}`
-                    );
-                  }}
-                  className="font-bold text-cyan-300 border-2 border-cyan-400/50 rounded-lg px-5 py-2 
-                transition-all duration-300 hover:bg-cyan-300 hover:text-gray-900"
-                  disabled={isMatchOver || currentUserTeamFinished}
-                >
-                  View
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="mt-8 flex flex-col items-center justify-center text-center">
-          {allProblemsSolved && !currentUserTeamFinished && (
+          {(allProblemsSolved || isFFA) && !currentUserTeamFinished && (
             <button
               onClick={handleFinishGame}
               className="font-bold text-gray-900 bg-green-400 border-2 border-green-400 rounded-lg px-8 py-3 text-xl
@@ -328,7 +365,7 @@ export default function Problemset() {
                          hover:bg-transparent hover:text-green-300
                          hover:shadow-[0_0_20px_rgba(74,222,128,0.5)]"
             >
-              Finish Game
+              {isFFA ? "Extract Squad (Finish Early)" : "Finish Game"}
             </button>
           )}
 

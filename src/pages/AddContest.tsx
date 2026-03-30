@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { doc, setDoc, collection, getDocs } from "firebase/firestore";
-import { Send, Info, Flame, Calendar, Gift, ShieldAlert, Globe, Lock, Target, Code } from "lucide-react";
+import { Info, Flame, Calendar, Gift, ShieldAlert, Globe, Lock, Target, Code } from "lucide-react";
 
 interface Problem {
   id: string;
