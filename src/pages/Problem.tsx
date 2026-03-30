@@ -35,16 +35,6 @@ export interface ProblemData {
   buggyTemplateByLanguage?: Record<string, string>;
 }
 
-// Testcase interface for validating test cases
-interface TestCases {
- input: string;
- expected: string;
- output: string;
- hidden: boolean;
- verdict: string;
- error: boolean;
- errorMessage: string;
-}
 
 // Mapping monaco languageId to Judge0 languageId
 const languageIdMap = {
@@ -59,6 +49,151 @@ const languageIdMap = {
 
 type Language = keyof typeof languageIdMap;
 const DEBUG_LANGUAGE: Language = "cpp";
+
+const SubmissionsView: React.FC<{ roomId: string, problemId: string, teamId: string, currentUserName: string }> = ({ roomId, problemId, teamId, currentUserName }) => {
+  const [submissionDetails, setSubmissionDetails] = useState<any[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null); // To toggle details
+  const localKey = `subs_${roomId}_${problemId}_${teamId}`;
+
+  const solvedMarked = useRef<Set<string>>(new Set());
+
+  const fetchStatuses = async () => {
+    const ids = JSON.parse(localStorage.getItem(localKey) || '[]');
+    if (ids.length === 0) return;
+
+    try {
+      const results = await Promise.all(
+        ids.map(async (id: string) => {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/status/${id}`);
+          const data = await res.json();
+
+          if (data.status === 'Completed' && data.ac && !solvedMarked.current.has(id)) {
+            console.log(`Submission ${id} Accepted! Marking problem as solved.`);
+            markTeamSolved(teamId, problemId, roomId, currentUserName);
+            solvedMarked.current.add(id); // Mark as handled
+          }
+
+          return data;
+
+        })
+      );
+      setSubmissionDetails(results);
+      console.log(results);
+    } catch (err) {
+      console.error("Polling error", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatuses();
+    const interval = setInterval(fetchStatuses, 5000);
+    return () => clearInterval(interval);
+  }, [roomId, problemId, teamId]);
+
+  return (
+    <div className="h-full overflow-y-auto p-4 space-y-4 bg-gray-950/40 custom-scrollbar">
+      <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
+        <h3 className="text-lg font-bold text-cyan-300">My Submissions</h3>
+        <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">{problemId}</span>
+      </div>
+
+      {submissionDetails.map((sub, i) => (
+        <div key={sub.id || i} className="group flex flex-col bg-gray-900/60 rounded-lg border border-gray-800 overflow-hidden transition-all hover:border-gray-600">
+          {/* Main Card Header */}
+          <div className="p-4 flex justify-between items-start">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-cyan-500 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                  {sub.id.slice(0, 8)}
+                </span>
+                <span className="text-[10px] font-mono text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded uppercase border border-purple-400/20">
+                  {sub.language}
+                </span>
+              </div>
+              <div className="text-[11px] text-gray-500">
+                User: <span className="text-gray-300">{sub.userId}</span>
+              </div>
+              <div className="text-[10px] text-gray-600 font-semibold">
+                {new Date(sub.submittedAt).toLocaleTimeString()}
+              </div>
+            </div>
+
+            <div className="text-right flex flex-col items-end">
+              <div className={`text-sm font-black uppercase italic tracking-tighter ${
+                sub.status === 'Completed' ? (sub.ac ? 'text-green-400' : 'text-red-400') : 'text-yellow-500'
+              }`}>
+                {sub.status === 'Processing' ? `Queue #${sub.queuePosition}` : (sub.ac ? 'Accepted' : 'Wrong Answer')}
+              </div>
+              
+              {sub.status === 'Completed' && (
+                <button 
+                  onClick={() => setExpandedId(expandedId === sub.id ? null : sub.id)}
+                  className="mt-2 text-[10px] bg-gray-800 text-gray-400 px-2 py-1 rounded hover:bg-gray-700 hover:text-white transition-colors"
+                >
+                  {expandedId === sub.id ? "Hide Details" : "View Results"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Expandable Results Section (The Judge.js data) */}
+          {expandedId === sub.id && sub.result && (
+            <div className="bg-black/40 border-t border-gray-800 p-4 space-y-3">
+              <div className="grid grid-cols-1 gap-2">
+                {sub.result.map((tc: any, idx: number) => (
+                  <div key={idx} className="bg-gray-900/80 p-3 rounded border border-gray-800/50">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">
+                        Testcase {idx + 1} {tc.hidden && "(Hidden)"}
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        tc.verdict === 'Accepted' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                      }`}>
+                        {tc.verdict}
+                      </span>
+                    </div>
+
+                    {!tc.hidden ? (
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px]">
+                        <div className="flex gap-2">
+                          <span className="text-purple-400 w-14 shrink-0">INPUT:</span>
+                          <span className="text-gray-300 break-all">{tc.input}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-purple-400 w-14 shrink-0">EXPECT:</span>
+                          <span className="text-green-300 break-all">{tc.expected}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-purple-400 w-14 shrink-0">OUTPUT:</span>
+                          <span className="text-white break-all">{tc.output || "(empty)"}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] italic text-gray-600">Hidden testcase details are private.</p>
+                    )}
+
+                    {tc.error && (
+                      <div className="mt-2 text-[9px] text-red-400 bg-red-400/5 p-1.5 rounded border border-red-400/10">
+                        Error: {tc.errorMessage}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Progress Bar for Processing */}
+          {sub.status === 'Processing' && (
+            <div className="h-1 w-full bg-gray-800">
+              <div className="h-full bg-cyan-500 animate-pulse" style={{ width: '100%' }}></div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const Problem: React.FC = () => {
 
@@ -75,10 +210,6 @@ const Problem: React.FC = () => {
   const currentUserName = user?.displayName || user?.email || "Anon";
 
   const [code, setCode] = useState("");
-
-  const [testResults, setTestResults] = useState<TestCases[]>([]);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const testResultsRef = useRef<HTMLDivElement | null>(null);
 
   const [opponents, setOpponents] = useState<any[]>([]);
 
@@ -316,50 +447,49 @@ const Problem: React.FC = () => {
     }
 
     // Handles Code Submission
-    const handleSubmit = async () => {
-      setIsLoading(true);
-      const sourceCode = editorRef.current?.getValue();
-      if(sourceCode === ""){ 
-        setIsLoading(false)
-        return
-      }
-      const normalizedCode = sourceCode?.replace(/\r\n/g, "\n") || "";
+const handleSubmit = async () => {
+  setIsLoading(true);
+  const sourceCode = editorRef.current?.getValue();
+  if (!sourceCode) {
+    setIsLoading(false);
+    return;
+  }
+  const normalizedCode = sourceCode.replace(/\r\n/g, "\n");
 
-      try {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/submit`, {
+      method: 'POST',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sourceCode: normalizedCode,
+        problemId: problemId,
+        language: roomMode === 'debug' ? DEBUG_LANGUAGE : language,
+        userId: user?.uid || currentUserName // Pass userId for better tracking
+      })
+    });
 
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/submit`, {
-          method: 'POST',
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sourceCode: normalizedCode,
-            problemId: problemId,
-            language: roomMode === 'debug' ? DEBUG_LANGUAGE : language,
-          })
-        })
+    if (!response.ok) throw new Error('Submission failed');
 
-        if (!response.ok) {
-          throw new Error('Response is not ok')
-        }
+    const { submissionId } = await response.json();
 
-        const data = await response.json();
-        setTestResults([...data.result])
+    // --- NEW: Save to LocalStorage ---
+    const localKey = `subs_${roomId}_${problemId}_${teamId}`;
+    const existingSubs = JSON.parse(localStorage.getItem(localKey) || '[]');
+    localStorage.setItem(localKey, JSON.stringify([submissionId, ...existingSubs]));
 
-        // Mark Points here
-		if (data.ac) {
-			markTeamSolved(teamId!, problemId!, roomId!, currentUserName)
-		}
+    // Switch to submissions tab immediately to show progress
+    setActiveTab('submissions'); 
+    setIsLoading(false);
 
-        setIsLoading(false);
-
-      } catch (error) {
-        console.error(error)
-      }
-    }
+  } catch (error) {
+    console.error(error);
+    setIsLoading(false);
+    alert("Failed to submit code. Please try again.");
+  }
+};
 
 
-const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
+const [activeTab, setActiveTab] = useState<'problem' | 'chat' | 'submissions'>('problem');
 
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden">
@@ -437,6 +567,16 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
       >
        Team Chat
       </button>
+      <button
+        onClick={() => setActiveTab('submissions')}
+        className={`px-6 py-2 text-sm font-medium transition-all duration-200 ${
+          activeTab === 'submissions'
+            ? 'text-cyan-400 border-b-2 border-cyan-400'
+            : 'text-gray-400 hover:text-cyan-300'
+        }`}
+      >
+        Submissions
+      </button>
      </div>
 
      {/* Tab Content */}
@@ -472,10 +612,14 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
          {data?.constraints || "Follow constraints implied by statement and samples."}
         </ul>
        </div>
-      ) : (
+      ) : activeTab === 'chat' ? (
        <div className="h-full">
         <ChatBox onClose={() => setActiveTab('problem')} />
        </div>
+      ) : (
+        <div className="h-full">
+          <SubmissionsView roomId={roomId!} problemId={problemId!} teamId={teamId!} currentUserName={currentUserName!} />
+        </div>
       )}
      </div>
     </div>
@@ -515,70 +659,7 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
       </div>
      </div>
 
-     {/* Test Results */}
-     <div ref={testResultsRef} className="h-[240px] flex border-t border-gray-700/50">
-      <div className="w-1/3 p-3 bg-gray-900/70 border-r border-gray-700/50 rounded-l-lg overflow-y-auto space-y-3">
-       {testResults.map((res, idx) => (
-        <button
-         key={idx}
-         onClick={() => setSelectedIdx(idx)}
-         className={`flex items-center justify-between px-4 py-2 rounded-lg text-sm font-medium transition-all
-          ${selectedIdx === idx ? "bg-cyan-800/60 text-cyan-300 border border-cyan-400" : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/70"}`}
-        >
-         <span>Testcase {idx + 1}</span>
-         <span
-          className={`px-2 py-0.5 rounded text-xs ${
-           res.verdict === "Accepted"
-            ? "bg-green-500/20 text-green-400"
-            : res.verdict
-            ? "bg-red-500/20 text-red-400"
-            : "bg-gray-500/20 text-gray-400"
-          }`}
-         >
-          {res.verdict || "Pending"}
-         </span>
-        </button>
-       ))}
-      </div>
 
-      <div className="w-2/3 bg-gray-950/80 h-full p-6 rounded-r-lg">
-       {selectedIdx === null ? (
-        <p className="text-gray-400">Select a testcase to view details.</p>
-       ) : (
-        <div className="space-y-3">
-         <h3 className="text-lg font-bold text-cyan-300">
-          Testcase {selectedIdx + 1} - {testResults[selectedIdx].verdict}
-         </h3>
-         {!testResults[selectedIdx].hidden ? (
-          <>
-           <p className='text-white' >
-            <span className="text-purple-400 font-semibold">Input:</span>{" "}
-            {testResults[selectedIdx].input}
-           </p>
-           <p className='text-white' >
-            <span className="text-purple-400 font-semibold">Expected:</span>{" "}
-            {testResults[selectedIdx].expected}
-           </p>
-           <p className='text-white' >
-            <span className="text-purple-400 font-semibold">Output:</span>{" "}
-            {testResults[selectedIdx].output}
-           </p>
-          </>
-         ) : (
-          <p className="text-gray-400 italic">
-           Hidden testcase — only verdict is shown.
-          </p>
-         )}
-         {testResults[selectedIdx].error && (
-          <p className="text-red-400">
-           Error: {testResults[selectedIdx].errorMessage}
-          </p>
-         )}
-        </div>
-       )}
-      </div>
-
-     </div>
     </div>
    </div>
 
@@ -595,5 +676,6 @@ const [activeTab, setActiveTab] = useState<'problem' | 'chat'>('problem');
   </div>
  );
 };
+
 
 export default Problem;

@@ -162,8 +162,9 @@ async function checkStatus(tokens, result) {
                     return;
                 }
 
-                const stdout = res.stdout ? atob(res.stdout) : null;
-                const stderr = res.stderr ? atob(res.stderr) : null;
+                const stdout = res.stdout ? atob(res.stdout) : "";
+                const stderr = res.stderr ? atob(res.stderr) : "";
+                const compile_output = res.compile_output ? atob(res.compile_output) : "";
 
                 const verdict = res.status?.description || "Unknown";
                 const passed = res.status?.id === 3; // 3 = Accepted
@@ -171,8 +172,8 @@ async function checkStatus(tokens, result) {
                 result[idx] = {
                     ...result[idx],
                     output: stdout ?? "",
-                    error: !!stderr,
-                    errorMessage: stderr ?? "",
+                    error: !!(stderr || compile_output),
+                    errorMessage: stderr || compile_output,
                     verdict: verdict,
                 };
 

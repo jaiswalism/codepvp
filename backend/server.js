@@ -20,6 +20,36 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+const submissions = new Map();
+const queue = [];
+
+async function runJudgeInBackground(id, code, problemId, languageId) {
+    // 1. Get the sub object immediately
+    const sub = submissions.get(id); 
+    
+    try {
+        const result = await getVerdict(code, problemId, languageId);
+        
+        if (!result) {
+            throw new Error("Judge returned no result");
+        }
+
+        // 2. Use the most fresh data from the Map
+        const currentSub = submissions.get(id); 
+        submissions.set(id, { ...currentSub, status: "Completed", ...result });
+    } catch (e) {
+        console.error("Judging Error:", e.message);
+        // 3. Ensure sub exists before setting Error status
+        if (submissions.has(id)) {
+            const currentSub = submissions.get(id);
+            submissions.set(id, { ...currentSub, status: "Error", errorMessage: e.message });
+        }
+    } finally {
+        const index = queue.indexOf(id);
+        if (index > -1) queue.splice(index, 1);
+    }
+}
+
 app.use(
   cors({
     origin: "*",
@@ -39,11 +69,39 @@ app.use(express.json());
 app.get("/api/rooms", (req, res) => res.json(rooms));
 
 app.post("/api/submit", async (req, res) => {
-  const sourceCode = req.body.sourceCode;
-  const problemId = req.body.problemId;
-  const language = req.body.language;
-  const result = await getVerdict(sourceCode, problemId, language);
-  res.json(result);
+
+  const id = crypto.randomUUID();
+
+  const { problemId, sourceCode, language, userId } = req.body;
+
+  const subData = {
+      id,
+      status: "Processing",
+      problemId: problemId,
+      language: language,
+      submittedAt: Date.now(),
+      userId: userId || "anaon tester" // To filter in the submissions tab
+  };
+
+  submissions.set(id, subData);
+  queue.push(id);
+
+  runJudgeInBackground(id, sourceCode, problemId, language);
+
+  res.json({ message: "Submitted successfully!", submissionId: id });
+});
+
+app.get("/api/status/:id", (req, res) => {
+    const sub = submissions.get(req.params.id);
+    if (!sub) return res.status(404).json({ error: "Not found" });
+
+    // Calculate queue position
+    let position = 0;
+    if (sub.status === "Processing") {
+        position = queue.indexOf(req.params.id) + 1;
+    }
+
+    res.json({ ...sub, queuePosition: position });
 });
 
 app.post('/upload-avatar', async (req, res) => {
