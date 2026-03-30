@@ -26,6 +26,9 @@ import AdminRoute from "./pages/components/AdminRoute"
 import AdminAddQuestion from "./pages/AddQuestion"
 import AddTournament from "./pages/AddTournament"
 import EditTournament from "./pages/EditTournament"
+import ContestList from "./pages/ContestList"
+import AddContest from "./pages/AddContest"
+import Contest from "./pages/Contest"
 
 function App() {
   return (
@@ -51,6 +54,8 @@ function App() {
             <Route path="PixelPvP/vote/:roomId" element={ <PixelPvPVote /> } />
             <Route path="tournaments" element={<TournamentList />} />
             <Route path="tournaments/:tournamentId" element={<TournamentLobby />} />
+            <Route path="contests" element={<ContestList />} />
+            <Route path="contests/:id" element={<Contest />} />
 
             {/* PROTECTED ADMIN ROUTE */}
             <Route 
@@ -78,6 +83,15 @@ function App() {
                   <EditTournament />
                 </AdminRoute>
               } 
+            />
+
+            <Route
+              path="admin/add-contest"
+              element={
+                <AdminRoute>
+                  <AddContest />
+                </AdminRoute>
+              }
             />
 
           </Route>
