@@ -1,5 +1,19 @@
 import { rooms, activeTimers, userToRoom } from "../store/rooms.js";
+import { submissions } from "../server.js";
 
+// Helper function to delete all submissions linked to a specific room
+function clearRoomSubmissions(targetRoomId) {
+  let deletedCount = 0;
+  for (const [subId, subData] of submissions.entries()) {
+    if (subData.roomId === targetRoomId) {
+      submissions.delete(subId);
+      deletedCount++;
+    }
+  }
+  if (deletedCount > 0) {
+    console.log(`🧹 Cleaned up ${deletedCount} submissions for room: ${targetRoomId}`);
+  }
+}
 export function gameHandlers(io, socket) {
   socket.on("startGame", ({ roomId, username, time }) => {
     const room = rooms[roomId];
@@ -21,6 +35,7 @@ export function gameHandlers(io, socket) {
     const timerId = setTimeout(() => {
       io.to(roomId).emit("matchEnd", { reason: "time_up" });
       activeTimers.delete(roomId);
+      clearRoomSubmissions(roomId);
     }, room.duration * 1000);
 
     activeTimers.set(roomId, timerId);
@@ -50,6 +65,7 @@ export function gameHandlers(io, socket) {
     const timerId = setTimeout(() => {
       io.to(roomId).emit("matchEnd", { reason: "time_up" });
       activeTimers.delete(roomId);
+      clearRoomSubmissions(roomId);
     }, room.duration * 1000);
 
     activeTimers.set(roomId, timerId);
@@ -80,6 +96,7 @@ export function gameHandlers(io, socket) {
       // When time is up, blast the matchEnd event to everyone in the problemset
       io.to(contestId).emit("matchEnd", { reason: "time_up" });
       activeTimers.delete(contestId);
+      clearRoomSubmissions(roomId);
       console.log(`FFA Contest ${contestId} ended due to time limit.`);
     }, durationMinutes * 60 * 1000);
 
@@ -110,6 +127,7 @@ export function gameHandlers(io, socket) {
     if (room.teamAFinishedTime && room.teamBFinishedTime) {
       clearTimeout(activeTimers.get(roomId));
       activeTimers.delete(roomId);
+      clearRoomSubmissions(roomId);
       io.to(roomId).emit("matchEnd", { reason: "both_teams_finished" });
     }
   });
@@ -123,6 +141,12 @@ export function gameHandlers(io, socket) {
     allPlayers.forEach((p) => {
       delete userToRoom[p.pid];
     });
+
+    if (activeTimers.has(roomId)) {
+      clearTimeout(activeTimers.get(roomId));
+      activeTimers.delete(roomId);
+    }
+    clearRoomSubmissions(roomId);
 
     delete rooms[roomId];
   });

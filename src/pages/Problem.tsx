@@ -51,33 +51,58 @@ type Language = keyof typeof languageIdMap;
 const DEBUG_LANGUAGE: Language = "cpp";
 
 const SubmissionsView: React.FC<{ roomId: string, problemId: string, teamId: string, currentUserName: string }> = ({ roomId, problemId, teamId, currentUserName }) => {
-  const [submissionDetails, setSubmissionDetails] = useState<any[]>([]);
+  const [details, setdetails] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null); // To toggle details
   const localKey = `subs_${roomId}_${problemId}_${teamId}`;
 
   const solvedMarked = useRef<Set<string>>(new Set());
+  const completedIds = useRef<Set<string>>(new Set());
 
   const fetchStatuses = async () => {
     const ids = JSON.parse(localStorage.getItem(localKey) || '[]');
     if (ids.length === 0) return;
 
+    const pendingIds = ids.filter((id : string) => !completedIds.current.has(id));
+
+    if (pendingIds.length === 0) return;
+
     try {
       const results = await Promise.all(
-        ids.map(async (id: string) => {
+        pendingIds.map(async (id: string) => {
           const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/status/${id}`);
           const data = await res.json();
 
-          if (data.status === 'Completed' && data.ac && !solvedMarked.current.has(id)) {
-            console.log(`Submission ${id} Accepted! Marking problem as solved.`);
-            markTeamSolved(teamId, problemId, roomId, currentUserName);
-            solvedMarked.current.add(id); // Mark as handled
+          // If the status is completed, add it to our ref so we stop polling it
+          if (data.status === 'Completed') {
+            completedIds.current.add(id); 
+
+            if (data.ac && !solvedMarked.current.has(id)) {
+              console.log(`Submission ${id} Accepted! Marking problem as solved.`);
+              markTeamSolved(teamId, problemId, roomId, currentUserName);
+              solvedMarked.current.add(id); // Mark as handled
+            }
           }
 
           return data;
 
         })
       );
-      setSubmissionDetails(results);
+      // Merge the newly fetched results with our existing state
+      setdetails(prevDetails => {
+        const newDetails = [...prevDetails];
+        
+        results.forEach(result => {
+          const index = newDetails.findIndex(item => item.id === result.id);
+          if (index !== -1) {
+            newDetails[index] = result; // Update existing submission
+          } else {
+            newDetails.push(result); // Add new submission
+          }
+        });
+
+        // Maintain the sort order based on localStorage (newest first)
+        return newDetails.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      });
       console.log(results);
     } catch (err) {
       console.error("Polling error", err);
@@ -86,7 +111,7 @@ const SubmissionsView: React.FC<{ roomId: string, problemId: string, teamId: str
 
   useEffect(() => {
     fetchStatuses();
-    const interval = setInterval(fetchStatuses, 5000);
+    const interval = setInterval(fetchStatuses, 10000);
     return () => clearInterval(interval);
   }, [roomId, problemId, teamId]);
 
@@ -97,7 +122,7 @@ const SubmissionsView: React.FC<{ roomId: string, problemId: string, teamId: str
         <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">{problemId}</span>
       </div>
 
-      {submissionDetails.map((sub, i) => (
+      {details.map((sub, i) => (
         <div key={sub.id || i} className="group flex flex-col bg-gray-900/60 rounded-lg border border-gray-800 overflow-hidden transition-all hover:border-gray-600">
           {/* Main Card Header */}
           <div className="p-4 flex justify-between items-start">
@@ -371,6 +396,24 @@ const Problem: React.FC = () => {
 
   }, [roomId, problemId, currentUserName]);
 
+  useEffect(() => {
+    if(!socket) return;
+
+    const handleMatchEnd = (data: {reason: string}) => {
+      console.log(`Match ended. Reason: ${data.reason}`);
+
+      localStorage.removeItem(`subs_${roomId}_${problemId}_${teamId}`);
+
+      navigate(`/room/${roomId}/results`);
+    }
+
+    socket.on("matchEnd", handleMatchEnd);
+
+    return () => {
+      socket.off("matchEnd", handleMatchEnd);
+    }
+  }, [socket, roomId])
+
   // Listening changes on editor (ignore remote if local typing)
   useEffect(() => {
     if (!socket) return;
@@ -449,7 +492,8 @@ const handleSubmit = async () => {
         sourceCode: normalizedCode,
         problemId: problemId,
         language: roomMode === 'debug' ? DEBUG_LANGUAGE : language,
-        userId: user?.uid || currentUserName // Pass userId for better tracking
+        userId: user?.uid || currentUserName, // Pass userId for better tracking
+        roomId: roomId
       })
     });
 

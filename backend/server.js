@@ -20,7 +20,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const submissions = new Map();
+export const submissions = new Map();
 const queue = [];
 
 async function runJudgeInBackground(id, code, problemId, languageId) {
@@ -72,7 +72,7 @@ app.post("/api/submit", async (req, res) => {
 
   const id = crypto.randomUUID();
 
-  const { problemId, sourceCode, language, userId } = req.body;
+  const { problemId, sourceCode, language, userId, roomId } = req.body;
 
   const subData = {
       id,
@@ -80,7 +80,8 @@ app.post("/api/submit", async (req, res) => {
       problemId: problemId,
       language: language,
       submittedAt: Date.now(),
-      userId: userId || "anaon tester" // To filter in the submissions tab
+      userId: userId || "anaon tester", // To filter in the submissions tab
+      roomId: roomId
   };
 
   submissions.set(id, subData);

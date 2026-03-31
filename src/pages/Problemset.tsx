@@ -124,7 +124,7 @@ export default function Problemset() {
   useEffect(() => {
       if (isMatchOver) {
           console.log("Match ended. Auto-submitting code...");
-          navigate(`/room/${roomId}/results`)
+          navigate(`/room/${roomId}/results`);
       }
   }, [isMatchOver, roomId, navigate]);
 
