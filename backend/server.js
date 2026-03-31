@@ -8,6 +8,7 @@ import { rooms } from "./store/rooms.js";
 import { getVerdict } from "./utils/judge.js";
 import { v2 as cloudinary } from 'cloudinary';
 import fileUpload from 'express-fileupload';
+import crypto from "crypto";
 
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,

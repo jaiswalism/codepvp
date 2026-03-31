@@ -7,7 +7,7 @@ export let options = {
   duration: '10m',
 };
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = 'http://98.70.44.224:5000/api';
 
 export default function () {
   // --- 1. INITIAL STAGGER ---
