@@ -23,10 +23,12 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 export const submissions = new Map();
 const queue = [];
+let averageProcessTimeMs = 2000;
 
 async function runJudgeInBackground(id, code, problemId, languageId) {
     // 1. Get the sub object immediately
     const sub = submissions.get(id); 
+    const startTime = Date.now();
     
     try {
         const result = await getVerdict(code, problemId, languageId);
@@ -34,6 +36,10 @@ async function runJudgeInBackground(id, code, problemId, languageId) {
         if (!result) {
             throw new Error("Judge returned no result");
         }
+
+        const duration = Date.now() - startTime;
+
+        averageProcessTimeMs = (averageProcessTimeMs * 0.8) + (duration * 0.2);
 
         // 2. Use the most fresh data from the Map
         const currentSub = submissions.get(id); 
@@ -99,11 +105,14 @@ app.get("/api/status/:id", (req, res) => {
 
     // Calculate queue position
     let position = 0;
+    let estimatedWaitTimeMs = 0;
     if (sub.status === "Processing") {
         position = queue.indexOf(req.params.id) + 1;
+
+        estimatedWaitTimeMs = Math.round(position * averageProcessTimeMs);
     }
 
-    res.json({ ...sub, queuePosition: position });
+    res.json({ ...sub, queuePosition: position, estimatedWaitTime: estimatedWaitTimeMs });
 });
 
 app.post('/upload-avatar', async (req, res) => {

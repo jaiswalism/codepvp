@@ -18,7 +18,7 @@ export default function () {
   const payload = JSON.stringify({
     sourceCode: `print(input()[::-1])`,
     problemId: "reverse-a-string",
-    languageId: "python"
+    language: "python"
   });
 
   const params = { headers: { 'Content-Type': 'application/json' } };
