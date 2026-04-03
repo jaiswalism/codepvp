@@ -70,3 +70,4 @@ coverage/
 backend/secrets/serviceAccountKey.json 
 # Data
 backend/data/*
+backend/scripts/stressTest.js
